@@ -343,8 +343,20 @@ class FridaCTFAssistant(ctk.CTk):
         self.hook_pkg_entry = ctk.CTkEntry(left_col, placeholder_text="com.example.challenge")
         self.hook_pkg_entry.pack(fill="x", padx=12, pady=(2, 8))
 
+        # Master Auto-Solver Shortcut Button
+        self.btn_auto_solver = ctk.CTkButton(
+            left_col,
+            text="🔥 PILIH AUTO-SOLVER (ALL-IN-ONE)\n(Root Bypass + String + Crypto Sniffer)",
+            height=44,
+            fg_color="#b45309",
+            hover_color="#d97706",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            command=self._select_master_auto_solver
+        )
+        self.btn_auto_solver.pack(fill="x", padx=12, pady=(2, 6))
+
         # Preset Templates Dropdown
-        ctk.CTkLabel(left_col, text="Template Frida Hook:", font=ctk.CTkFont(size=11, weight="bold")).pack(anchor="w", padx=12, pady=(4, 0))
+        ctk.CTkLabel(left_col, text="Atau Pilih Template Spesifik:", font=ctk.CTkFont(size=11, weight="bold")).pack(anchor="w", padx=12, pady=(4, 0))
         template_keys = list(TEMPLATES.keys())
         self.template_combo = ctk.CTkComboBox(
             left_col,
@@ -372,12 +384,18 @@ class FridaCTFAssistant(ctk.CTk):
             value="attach"
         ).pack(anchor="w", padx=14, pady=2)
 
-        self.no_pause_var = ctk.BooleanVar(value=True)
-        ctk.CTkCheckBox(
-            left_col,
-            text="Gunakan --no-pause (Langsung run)",
-            variable=self.no_pause_var
-        ).pack(anchor="w", padx=14, pady=(4, 12))
+        # Live Real-time Status Card
+        self.hook_state_frame = ctk.CTkFrame(left_col, fg_color="#111827", corner_radius=6, border_width=1, border_color="#334155")
+        self.hook_state_frame.pack(fill="x", padx=12, pady=(6, 10))
+
+        self.lbl_hook_state = ctk.CTkLabel(
+            self.hook_state_frame,
+            text="⚪ STATUS: IDLE / STANDBY\n(Klik 'START HOOK' lalu buka app di emulator)",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            text_color="#94a3b8",
+            justify="center"
+        )
+        self.lbl_hook_state.pack(padx=8, pady=8)
 
         # Script File Actions
         file_action_row = ctk.CTkFrame(left_col, fg_color="transparent")
@@ -1055,6 +1073,13 @@ class FridaCTFAssistant(ctk.CTk):
     # -------------------------------------------------------------------------
     # Frida Hooking Studio Actions
     # -------------------------------------------------------------------------
+    def _select_master_auto_solver(self):
+        tpl = "00_AUTO_SOLVER_ALL_IN_ONE"
+        if tpl in TEMPLATES:
+            self.template_combo.set(tpl)
+            self._on_template_selected(tpl)
+            self.set_status("🔥 Master Auto-Solver dimuat! (Root Bypass + String Sniffer + Crypto Sniffer Aktif)")
+
     def _on_template_selected(self, key):
         if key in TEMPLATES:
             code = TEMPLATES[key].strip()
@@ -1138,7 +1163,6 @@ class FridaCTFAssistant(ctk.CTk):
             f.write(code)
 
         spawn = (self.hook_mode_var.get() == "spawn")
-        no_pause = self.no_pause_var.get()
 
         self._clear_console()
         self.append_console(f"[*] Menyiapkan Frida session untuk target: {pkg}\n")
@@ -1146,23 +1170,31 @@ class FridaCTFAssistant(ctk.CTk):
 
         self.btn_run_hook.configure(state="disabled", fg_color="#334155")
         self.btn_stop_hook.configure(state="normal")
+        if hasattr(self, "lbl_hook_state"):
+            self.lbl_hook_state.configure(
+                text="🟢 STATUS: HOOK SEDANG BERJALAN!\n-> Buka app di emulator, ketik flag / klik tombol!",
+                text_color="#22c55e"
+            )
 
         success = self.runner.start_hook(
             package_name=pkg,
             script_path=script_file,
             spawn=spawn,
-            device_id=self.selected_device_id,
-            no_pause=no_pause
+            device_id=self.selected_device_id
         )
         if not success:
             self.btn_run_hook.configure(state="normal", fg_color="#16a34a")
             self.btn_stop_hook.configure(state="disabled")
+            if hasattr(self, "lbl_hook_state"):
+                self.lbl_hook_state.configure(text="❌ STATUS: GAGAL MENJALANKAN HOOK", text_color="#ef4444")
 
     def stop_frida_hook(self):
         """Stop running Frida session."""
         self.runner.stop_hook()
         self.btn_run_hook.configure(state="normal", fg_color="#16a34a")
         self.btn_stop_hook.configure(state="disabled")
+        if hasattr(self, "lbl_hook_state"):
+            self.lbl_hook_state.configure(text="⚪ STATUS: HOOK DIHENTIKAN", text_color="#94a3b8")
 
     def on_frida_output(self, text: str):
         """Callback from runner thread."""
@@ -1185,6 +1217,8 @@ class FridaCTFAssistant(ctk.CTk):
             elif msg_type == "frida_exit":
                 self.btn_run_hook.configure(state="normal", fg_color="#16a34a")
                 self.btn_stop_hook.configure(state="disabled")
+                if hasattr(self, "lbl_hook_state"):
+                    self.lbl_hook_state.configure(text="⚪ STATUS: SELESAI / BERHENTI", text_color="#94a3b8")
             elif msg_type == "logcat":
                 self.logcat_text.insert("end", data)
                 self.logcat_text.see("end")

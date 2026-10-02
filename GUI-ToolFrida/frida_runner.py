@@ -67,8 +67,6 @@ class FridaRunner:
 
         if spawn:
             cmd.extend(["-f", package_name])
-            if no_pause:
-                cmd.append("--no-pause")
         else:
             cmd.extend(["-n", package_name])
 

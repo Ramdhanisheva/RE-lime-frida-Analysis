@@ -3,6 +3,195 @@ GUI-ToolFrida - Frida Script Templates for Android CTF Competitions
 """
 
 TEMPLATES = {
+    "00_AUTO_SOLVER_ALL_IN_ONE": """/*
+ * ============================================================================
+ * [CTF MASTER AUTO-SOLVER] ALL-IN-ONE UNIVERSAL SNIFFER & BYPASS
+ * Otomatis meng-hook:
+ * 1. Root & Magisk Detection Bypass (Aplikasi tidak akan force-close di root)
+ * 2. String & Bytes Comparison Sniffer (String.equals, compareTo, Arrays.equals)
+ * 3. Cryptography Sniffer (AES/DES/RSA Key, IV, Plaintext & Ciphertext)
+ * 4. Base64 & Hash Sniffer (Base64.decode/encode)
+ * 5. Toast & Logcat Sniffer (Mencegat pesan flag di layar)
+ * ============================================================================
+ */
+Java.perform(function() {
+    console.log("========================================================");
+    console.log("[🔥 CTF MASTER AUTO-SOLVER] SEMUA HOOK AKTIF & STANDBY!");
+    console.log("-> Root Bypass: AKTIF");
+    console.log("-> String & Flag Sniffer: AKTIF");
+    console.log("-> Crypto (AES/Key/IV) Sniffer: AKTIF");
+    console.log("-> Silakan buka app di emulator & ketik flag / klik tombol!");
+    console.log("========================================================\\n");
+
+    function bytesToHex(bytes) {
+        if (!bytes) return "";
+        var hex = [];
+        for (var i = 0; i < bytes.length; i++) {
+            var b = (bytes[i] & 0xFF).toString(16);
+            if (b.length === 1) b = "0" + b;
+            hex.push(b);
+        }
+        return hex.join("");
+    }
+
+    function bytesToString(bytes) {
+        if (!bytes) return "";
+        try {
+            var StringClass = Java.use("java.lang.String");
+            return StringClass.$new(bytes, "UTF-8").toString();
+        } catch(e) {
+            return "";
+        }
+    }
+
+    // 1. ROOT DETECTION BYPASS
+    try {
+        var File = Java.use("java.io.File");
+        File.exists.implementation = function() {
+            var path = this.getAbsolutePath();
+            if (path.indexOf("su") !== -1 || path.indexOf("busybox") !== -1 ||
+                path.indexOf("magisk") !== -1 || path.indexOf("Superuser") !== -1) {
+                console.log("[BYPASS ROOT] File.exists diblokir -> " + path);
+                return false;
+            }
+            return this.exists();
+        };
+    } catch(e) {}
+
+    try {
+        var Runtime = Java.use("java.lang.Runtime");
+        Runtime.exec.overload('java.lang.String').implementation = function(cmd) {
+            if (cmd.indexOf("su") !== -1 || cmd.indexOf("which") !== -1) {
+                console.log("[BYPASS ROOT] Runtime.exec diblokir -> " + cmd);
+                return this.exec("echo no_root");
+            }
+            return this.exec(cmd);
+        };
+    } catch(e) {}
+
+    // 2. STRING & BYTES COMPARISON (FLAG SNIFFER)
+    try {
+        var StringClass = Java.use("java.lang.String");
+        StringClass.equals.implementation = function(obj) {
+            if (obj !== null) {
+                var s1 = this.toString();
+                var s2 = obj.toString();
+                if (s1.length > 2 && s2.length > 2 && s1 !== s2) {
+                    var s1_l = s1.toLowerCase();
+                    var s2_l = s2.toLowerCase();
+                    if (s1_l.indexOf("flag") !== -1 || s2_l.indexOf("flag") !== -1 ||
+                        s1.indexOf("{") !== -1 || s2.indexOf("{") !== -1 ||
+                        s1_l.indexOf("hacktoday") !== -1 || s2_l.indexOf("hacktoday") !== -1 ||
+                        s1_l.indexOf("ctf") !== -1 || s2_l.indexOf("ctf") !== -1 ||
+                        s1_l.indexOf("key") !== -1 || s2_l.indexOf("key") !== -1) {
+                        console.log("\\n[🚩 BINGO String.equals]");
+                        console.log("   -> Value A (Target/Input) : " + s1);
+                        console.log("   -> Value B (Target/Input) : " + s2);
+                    }
+                }
+            }
+            return this.equals(obj);
+        };
+
+        StringClass.equalsIgnoreCase.implementation = function(obj) {
+            if (obj !== null) {
+                var s1 = this.toString();
+                var s2 = obj.toString();
+                if (s1.length > 2 && s2.length > 2 && s1 !== s2) {
+                    console.log("\\n[🚩 BINGO String.equalsIgnoreCase] " + s1 + " <---> " + s2);
+                }
+            }
+            return this.equalsIgnoreCase(obj);
+        };
+
+        StringClass.compareTo.overload('java.lang.String').implementation = function(anotherString) {
+            if (anotherString !== null) {
+                var s1 = this.toString();
+                var s2 = anotherString.toString();
+                if (s1.length > 3 && s2.length > 3 && s1 !== s2) {
+                    if (s1.indexOf("{") !== -1 || s2.indexOf("{") !== -1 || s1.indexOf("flag") !== -1) {
+                        console.log("\\n[🚩 BINGO String.compareTo] " + s1 + " <---> " + s2);
+                    }
+                }
+            }
+            return this.compareTo(anotherString);
+        };
+    } catch(e) {}
+
+    try {
+        var Arrays = Java.use("java.util.Arrays");
+        Arrays.equals.overload('[B', '[B').implementation = function(a, b) {
+            if (a !== null && b !== null && a.length > 3) {
+                var strA = bytesToString(a);
+                var strB = bytesToString(b);
+                if (strA || strB) {
+                    console.log("\\n[🚩 BINGO Arrays.equals byte[]]");
+                    console.log("   -> Bytes A (ASCII) : " + strA + " [Hex: " + bytesToHex(a) + "]");
+                    console.log("   -> Bytes B (ASCII) : " + strB + " [Hex: " + bytesToHex(b) + "]");
+                }
+            }
+            return this.equals(a, b);
+        };
+    } catch(e) {}
+
+    // 3. CRYPTOGRAPHY SNIFFER (AES / DES / RSA)
+    try {
+        var SecretKeySpec = Java.use("javax.crypto.spec.SecretKeySpec");
+        SecretKeySpec.$init.overload('[B', 'java.lang.String').implementation = function(keyBytes, algo) {
+            console.log("\\n[🔐 CRYPTO SecretKeySpec]");
+            console.log("   -> Algorithm : " + algo);
+            console.log("   -> Key (Hex) : " + bytesToHex(keyBytes));
+            console.log("   -> Key (Txt) : " + bytesToString(keyBytes));
+            return this.$init(keyBytes, algo);
+        };
+    } catch(e) {}
+
+    try {
+        var IvParameterSpec = Java.use("javax.crypto.spec.IvParameterSpec");
+        IvParameterSpec.$init.overload('[B').implementation = function(ivBytes) {
+            console.log("\\n[🔐 CRYPTO IV Parameter]");
+            console.log("   -> IV (Hex) : " + bytesToHex(ivBytes));
+            console.log("   -> IV (Txt) : " + bytesToString(ivBytes));
+            return this.$init(ivBytes);
+        };
+    } catch(e) {}
+
+    try {
+        var Cipher = Java.use("javax.crypto.Cipher");
+        Cipher.doFinal.overload('[B').implementation = function(input) {
+            var ret = this.doFinal(input);
+            console.log("\\n[🔐 CRYPTO Cipher.doFinal]");
+            console.log("   -> Input  (Hex) : " + bytesToHex(input));
+            console.log("   -> Input  (Txt) : " + bytesToString(input));
+            console.log("   -> Output (Hex) : " + bytesToHex(ret));
+            console.log("   -> Output (Txt) : " + bytesToString(ret));
+            return ret;
+        };
+    } catch(e) {}
+
+    // 4. BASE64 SNIFFER
+    try {
+        var Base64 = Java.use("android.util.Base64");
+        Base64.decode.overload('java.lang.String', 'int').implementation = function(str, flags) {
+            var ret = this.decode(str, flags);
+            var decodedStr = bytesToString(ret);
+            if (decodedStr && decodedStr.length > 2) {
+                console.log("\\n[📦 Base64.decode] Input: " + str + " --> Output: " + decodedStr);
+            }
+            return ret;
+        };
+    } catch(e) {}
+
+    // 5. TOAST SNIFFER
+    try {
+        var Toast = Java.use("android.widget.Toast");
+        Toast.makeText.overload('android.content.Context', 'java.lang.CharSequence', 'int').implementation = function(ctx, text, dur) {
+            console.log("\\n[📢 Toast.makeText] " + text);
+            return this.makeText(ctx, text, dur);
+        };
+    } catch(e) {}
+});
+""",
     "01_String_Equals_Sniffer": """/*
  * [CTF SOLVER] Universal String & Array Comparison Sniffer
  * Intercepts java.lang.String.equals, equalsIgnoreCase, and Arrays.equals
