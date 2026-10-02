@@ -1169,6 +1169,10 @@ class FridaCTFAssistant(ctk.CTk):
         with open(script_file, "w", encoding="utf-8") as f:
             f.write(current_code)
 
+        # Store for auto-retry in error handler
+        self._last_script_file = script_file
+        self._last_pkg = pkg
+
         # ── SMART MODE DETECTION ──────────────────────────────────────────────
         # Auto-detect: if the user selected "spawn" but app is already running,
         # automatically switch to attach (avoids NullPointerException crash)
@@ -1248,11 +1252,58 @@ class FridaCTFAssistant(ctk.CTk):
         self.console_output.see("end")
 
     def _process_log_queue(self):
-        """Drain queue on the Tkinter main thread."""
+        """Drain queue on the Tkinter main thread — with smart error detection."""
         while not self.log_queue.empty():
             msg_type, data = self.log_queue.get_nowait()
+
             if msg_type == "frida":
                 self.append_console(data)
+
+                # ── SMART ERROR DETECTION ────────────────────────────────────
+                # Error 1: App belum buka di emulator → Attach gagal
+                if "unable to find process" in data.lower():
+                    pkg = self.hook_pkg_entry.get().strip()
+                    script = getattr(self, "_last_script_file", None)
+                    if script and pkg:
+                        self.append_console(
+                            "\n[AUTO-FIX] App belum buka → mencoba SPAWN (buka otomatis)...\n\n"
+                        )
+                        if hasattr(self, "lbl_hook_state"):
+                            self.lbl_hook_state.configure(
+                                text="🔄 Auto-retry: SPAWN mode (membuka app)...",
+                                text_color="#f59e0b"
+                            )
+                        self.runner.start_hook(
+                            package_name=pkg,
+                            script_path=script,
+                            spawn=True,
+                            device_id=self.selected_device_id
+                        )
+
+                # Error 2: Spawn gagal NullPointerException (Frida17 + some APKs)
+                elif "nullpointerexception" in data.lower() and "failed to spawn" in data.lower():
+                    pkg = self.hook_pkg_entry.get().strip()
+                    script = getattr(self, "_last_script_file", None)
+                    if script and pkg:
+                        self.append_console(
+                            "\n[AUTO-FIX] Spawn NPE → coba buka app manual, lalu Attach...\n"
+                            "  → Buka app di emulator (tap icon) lalu tunggu 2 detik\n"
+                            "  → AUTO mencoba Attach dalam 3 detik...\n\n"
+                        )
+                        if hasattr(self, "lbl_hook_state"):
+                            self.lbl_hook_state.configure(
+                                text="🔄 Auto-retry: ATTACH mode dalam 3 detik...\n→ Buka app di emulator sekarang!",
+                                text_color="#f59e0b"
+                            )
+                        # Delay 3s then attach
+                        self.after(3000, lambda p=pkg, s=script: self.runner.start_hook(
+                            package_name=p,
+                            script_path=s,
+                            spawn=False,
+                            device_id=self.selected_device_id
+                        ))
+                # ─────────────────────────────────────────────────────────────
+
             elif msg_type == "frida_exit":
                 self.btn_run_hook.configure(state="normal", fg_color="#16a34a")
                 self.btn_stop_hook.configure(state="disabled")
@@ -1263,6 +1314,7 @@ class FridaCTFAssistant(ctk.CTk):
                 self.logcat_text.see("end")
 
         self.after(100, self._process_log_queue)
+
 
     # -------------------------------------------------------------------------
     # TAB 3 Tools & AVD Actions

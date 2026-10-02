@@ -226,19 +226,16 @@ class ADBManager:
 
     def is_app_running(self, device_id: str, package_name: str) -> bool:
         """Check if a specific app is currently running on the device."""
+        # Use 'ps' which is more reliable than 'pidof' on Android
         ret, stdout, _ = self.run_adb(
-            ["shell", "pidof", package_name],
-            device_id=device_id, timeout=4
+            ["shell", "ps", "-A"],
+            device_id=device_id, timeout=6
         )
-        if ret == 0 and stdout.strip():
-            return True
-        # Fallback: check ps
-        ret2, stdout2, _ = self.run_adb(
-            ["shell", f"ps -A | grep '{package_name}'"],
-            device_id=device_id, timeout=4
-        )
-        if ret2 == 0 and package_name in stdout2:
-            return True
+        if ret == 0 and package_name in stdout:
+            # Verify it's the exact package (not a substring match in path)
+            for line in stdout.splitlines():
+                if line.strip().endswith(package_name) or f" {package_name} " in line or f" {package_name}:" in line:
+                    return True
         return False
 
     def get_detailed_packages(self, device_id: str) -> List[Dict[str, Any]]:
