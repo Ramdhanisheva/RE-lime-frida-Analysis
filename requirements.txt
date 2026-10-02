@@ -1,0 +1,10 @@
+# Automotion Reverse Engineering Dependencies
+# Standard pure Python 3.10+ (battery-included core)
+# Optional enhanced tools:
+frida>=16.0.0
+frida-tools>=12.0.0
+z3-solver>=4.12.0
+pycryptodome>=3.18.0
+pyelftools>=0.29
+pefile>=2023.2.7
+capstone>=5.0.0

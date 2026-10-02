@@ -1,0 +1,65 @@
+{
+  "target": "sample_apks\\challenge_05_apk_in_apk.apk",
+  "file_size": 1061,
+  "flags_found": [
+    {
+      "flag": "HackToday26{4pk_1n_4pk_m4tr3shk4}",
+      "encoding": "Plaintext ASCII",
+      "offset": "0x4b",
+      "context": "[APK-in-APK:assets/payload.apk/res/values/strings.xml] HackToday26{4pk_1n_4pk_m4tr3shk4}"
+    }
+  ],
+  "frida_scripts": {
+    "Universal Crypto Sniffer": "results\\frida_scripts\\00_universal_crypto_sniffer.js",
+    "Static Method Invoker": "results\\frida_scripts\\01_invoke_static_method.js",
+    "Instance Method Invoker (Java.choose)": "results\\frida_scripts\\02_choose_instance_invoker.js",
+    "Variable Modifier": "results\\frida_scripts\\03_modify_variables.js",
+    "Method Return Value Override": "results\\frida_scripts\\04_hook_return_values.js",
+    "Native .so String Interceptor": "results\\frida_scripts\\05_native_so_hook.js",
+    "Root Detection Bypass": "results\\frida_scripts\\06_root_bypass.js"
+  },
+  "is_apk": true,
+  "apk_path": "sample_apks\\challenge_05_apk_in_apk.apk",
+  "package_name": "com.hacktoday.challenge05",
+  "main_activity": "com.hacktoday.challenge05.MainActivity",
+  "activities": [],
+  "permissions": [],
+  "native_libraries": [],
+  "dex_files": [
+    {
+      "name": "classes.dex",
+      "strings_count": 47,
+      "classes_count": 0,
+      "methods_count": 0,
+      "is_app_dex": false
+    }
+  ],
+  "app_classes": [],
+  "interesting_methods": [],
+  "crypto_candidates": {
+    "keys": [],
+    "ivs": [],
+    "ciphertexts": [
+      {
+        "b64": "com/hacktoday/challenge05/Loader",
+        "raw_bytes": "b'r\\x89\\xbf\\x85\\xa7$\\xb6\\x87Z\\xcb\\xf7!jY^\\x9e\\x07\\xb4\\xe7\\xf2\\xe8i\\xd7\\xab'",
+        "length": 24,
+        "priority": 2
+      }
+    ],
+    "target_strings": [
+      "com/hacktoday/challenge05/Loader"
+    ]
+  },
+  "extracted_dir": "results\\extracted_challenge_05_apk_in_apk",
+  "encrypted_assets": [],
+  "apk_in_apk": [
+    {
+      "path": "assets/payload.apk",
+      "size": 596
+    }
+  ],
+  "sharedprefs_data": [],
+  "gradle_secrets": [],
+  "obfuscated_classes": []
+}
