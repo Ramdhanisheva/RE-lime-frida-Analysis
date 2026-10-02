@@ -79,8 +79,10 @@ Java.perform(function() {
         Build.FINGERPRINT.value = "google/pixel7/pixel7:13/TQ2A.230505.002/9892780:user/release-keys";
     } catch(e) {}
 
-    // 2. STRING & BYTES COMPARISON SNIFFER (SAFE RE-ENTRANCY)
+    // 2. STRING & BYTES COMPARISON SNIFFER (SAFE RE-ENTRANCY & NOISE FILTER)
     var inHook = false;
+    var IGNORE_SYSTEM = ["androidkeystore", "androidnssp", "robolectric", "android@android.com", "mountain view", "california", "x509"];
+
     try {
         var StringClass = Java.use("java.lang.String");
         StringClass.equals.implementation = function(obj) {
@@ -94,15 +96,26 @@ Java.perform(function() {
                 if (s1.length > 2 && s2.length > 2 && s1 !== s2) {
                     var s1_l = s1.toLowerCase();
                     var s2_l = s2.toLowerCase();
-                    if (s1_l.indexOf("flag") !== -1 || s2_l.indexOf("flag") !== -1 ||
+                    
+                    var isSystem = false;
+                    for (var i = 0; i < IGNORE_SYSTEM.length; i++) {
+                        if (s1_l.indexOf(IGNORE_SYSTEM[i]) !== -1 || s2_l.indexOf(IGNORE_SYSTEM[i]) !== -1) {
+                            isSystem = true;
+                            break;
+                        }
+                    }
+
+                    if (!isSystem && (
+                        s1_l.indexOf("flag") !== -1 || s2_l.indexOf("flag") !== -1 ||
                         s1.indexOf("{") !== -1 || s2.indexOf("{") !== -1 ||
                         s1_l.indexOf("hacktoday") !== -1 || s2_l.indexOf("hacktoday") !== -1 ||
                         s1_l.indexOf("ctf") !== -1 || s2_l.indexOf("ctf") !== -1 ||
-                        s1_l.indexOf("key") !== -1 || s2_l.indexOf("key") !== -1 ||
-                        s1_l.indexOf("pass") !== -1 || s2_l.indexOf("pass") !== -1) {
+                        s1_l.indexOf("secret") !== -1 || s2_l.indexOf("secret") !== -1 ||
+                        s1_l.indexOf("password") !== -1 || s2_l.indexOf("password") !== -1 ||
+                        s1_l.indexOf("auth") !== -1 || s2_l.indexOf("auth") !== -1)) {
                         console.log("\\n[🚩 BINGO String.equals]");
-                        console.log("   -> Target / Expected: " + s1);
-                        console.log("   -> Input  / Actual  : " + s2);
+                        console.log("   -> Target / Expected : " + s1);
+                        console.log("   -> Input  / Actual   : " + s2);
                     }
                 }
             } catch(err) {}
@@ -119,7 +132,22 @@ Java.perform(function() {
             if (a !== null && b !== null && a.length > 3) {
                 var strA = bytesToString(a);
                 var strB = bytesToString(b);
-                if (strA || strB) {
+                var strA_l = strA.toLowerCase();
+                var strB_l = strB.toLowerCase();
+                
+                var isSystem = false;
+                for (var i = 0; i < IGNORE_SYSTEM.length; i++) {
+                    if (strA_l.indexOf(IGNORE_SYSTEM[i]) !== -1 || strB_l.indexOf(IGNORE_SYSTEM[i]) !== -1) {
+                        isSystem = true;
+                        break;
+                    }
+                }
+
+                if (!isSystem && (
+                    strA_l.indexOf("flag") !== -1 || strB_l.indexOf("flag") !== -1 ||
+                    strA.indexOf("{") !== -1 || strB.indexOf("{") !== -1 ||
+                    strA_l.indexOf("hacktoday") !== -1 || strB_l.indexOf("hacktoday") !== -1 ||
+                    strA_l.indexOf("ctf") !== -1 || strB_l.indexOf("ctf") !== -1)) {
                     console.log("\\n[🚩 BINGO Arrays.equals byte[]]");
                     console.log("   -> Bytes A (ASCII) : " + strA + " [Hex: " + bytesToHex(a) + "]");
                     console.log("   -> Bytes B (ASCII) : " + strB + " [Hex: " + bytesToHex(b) + "]");
@@ -128,6 +156,7 @@ Java.perform(function() {
             return this.equals(a, b);
         };
     } catch(e) {}
+
 
     // 3. CRYPTOGRAPHY SNIFFER (AES / DES / RSA / Key / IV / Plaintext)
     try {
