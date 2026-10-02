@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 import customtkinter as ctk
 
 from adb_manager import ADBManager
+from apk_triage import APKTriage
 from frida_runner import FridaRunner
 from templates import TEMPLATES
 
@@ -39,11 +40,13 @@ class FridaCTFAssistant(ctk.CTk):
         # Core Managers
         self.adb = ADBManager()
         self.runner = FridaRunner(on_output=self.on_frida_output, on_exit=self.on_frida_exit)
+        self.triage = APKTriage(workspace_dir=os.path.join(os.path.dirname(os.path.abspath(__file__)), "triage_workspace"))
         self.log_queue = queue.Queue()
 
         # State
         self.selected_device_id = None
         self.current_apk_info = {}
+        self.last_triage_result = {}
         self.logcat_process = None
         self.logcat_thread = None
         self.is_logcat_running = False
@@ -166,7 +169,7 @@ class FridaCTFAssistant(ctk.CTk):
 
         ctk.CTkLabel(
             apk_box,
-            text="1. PILIH FILE APK SOAL (CHALLENGE.APK):",
+            text="1. PILIH FILE APK TARGET (DARI PC ATAU TARIK DARI EMULATOR):",
             font=ctk.CTkFont(size=13, weight="bold"),
             text_color="#38bdf8"
         ).pack(anchor="w", padx=12, pady=(10, 4))
@@ -176,7 +179,7 @@ class FridaCTFAssistant(ctk.CTk):
 
         self.apk_entry = ctk.CTkEntry(
             picker_row,
-            placeholder_text="Klik Browse atau Drag & Drop path APK di sini..."
+            placeholder_text="Path APK di Windows (atau klik 'Tarik APK' pada daftar di bawah)..."
         )
         self.apk_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
 
@@ -185,12 +188,22 @@ class FridaCTFAssistant(ctk.CTk):
             text="📂 Browse APK",
             width=110,
             command=self._browse_apk
-        ).pack(side="left", padx=(0, 8))
+        ).pack(side="left", padx=(0, 6))
+
+        ctk.CTkButton(
+            picker_row,
+            text="⚡ Triage APK (Rev Tool)",
+            width=150,
+            fg_color="#0d9488",
+            hover_color="#0f766e",
+            font=ctk.CTkFont(weight="bold"),
+            command=self._run_apk_triage
+        ).pack(side="left", padx=(0, 6))
 
         ctk.CTkButton(
             picker_row,
             text="📥 Install ke Emu",
-            width=130,
+            width=120,
             fg_color="#16a34a",
             hover_color="#15803d",
             command=self._install_selected_apk
@@ -222,64 +235,76 @@ class FridaCTFAssistant(ctk.CTk):
         ctk.CTkButton(
             app_ctrl_row,
             text="🚀 Buka Aplikasi",
-            width=120,
+            width=115,
             fg_color="#0284c7",
             command=self._launch_target_app
-        ).pack(side="left", padx=(0, 8))
+        ).pack(side="left", padx=(0, 6))
 
         ctk.CTkButton(
             app_ctrl_row,
             text="🛑 Force Stop",
-            width=110,
+            width=100,
             fg_color="#dc2626",
             hover_color="#b91c1c",
             command=self._force_stop_app
-        ).pack(side="left", padx=(0, 8))
+        ).pack(side="left", padx=(0, 6))
 
         ctk.CTkButton(
             app_ctrl_row,
             text="🧹 Clear Data",
-            width=110,
+            width=100,
             fg_color="#d97706",
             hover_color="#b45309",
             command=self._clear_app_data
-        ).pack(side="left", padx=(0, 8))
+        ).pack(side="left", padx=(0, 6))
+
+        ctk.CTkButton(
+            app_ctrl_row,
+            text="📦 Unpack Folder APK",
+            width=140,
+            fg_color="#475569",
+            hover_color="#334155",
+            command=self._unpack_apk_folder
+        ).pack(side="left", padx=(0, 6))
 
         ctk.CTkButton(
             app_ctrl_row,
             text="💉 Siapkan Hook Frida",
-            width=160,
+            width=150,
             fg_color="#9333ea",
             hover_color="#7e22ce",
             command=self._send_pkg_to_hook_tab
         ).pack(side="left")
 
-        # 3. Installed Packages on Emulator
-        pkg_box = ctk.CTkFrame(self.tab_apk, corner_radius=8)
-        pkg_box.pack(fill="both", expand=True, padx=10, pady=(6, 10))
+        # 3. Dynamic Triage & Recommendation Card (Rev Tool Integration)
+        self.triage_card = ctk.CTkFrame(self.tab_apk, corner_radius=8, fg_color="#0f172a", border_width=1, border_color="#334155")
+        # Hidden until triage runs
 
-        pkg_header = ctk.CTkFrame(pkg_box, fg_color="transparent")
+        # 4. Installed Packages on Emulator
+        self.pkg_box = ctk.CTkFrame(self.tab_apk, corner_radius=8)
+        self.pkg_box.pack(fill="both", expand=True, padx=10, pady=(6, 10))
+
+        pkg_header = ctk.CTkFrame(self.pkg_box, fg_color="transparent")
         pkg_header.pack(fill="x", padx=12, pady=(10, 4))
 
         ctk.CTkLabel(
             pkg_header,
             text="DAFTAR APLIKASI DI EMULATOR:",
             font=ctk.CTkFont(size=12, weight="bold")
-        ).pack(side="left")
+        ).pack(side="left", padx=(0, 10))
 
-        self.pkg_search_entry = ctk.CTkEntry(pkg_header, placeholder_text="Filter nama package...", width=200)
+        self.pkg_filter_var = ctk.StringVar(value="Semua")
+        self.pkg_seg_filter = ctk.CTkSegmentedButton(
+            pkg_header,
+            values=["Semua", "⭐ Target CTF", "👤 User App"],
+            variable=self.pkg_filter_var,
+            command=lambda v: self._filter_package_list()
+        )
+        self.pkg_seg_filter.pack(side="left", padx=(0, 10))
+
+        self.pkg_search_entry = ctk.CTkEntry(pkg_header, placeholder_text="Filter nama package...", width=180)
         self.pkg_search_entry.pack(side="right", padx=(6, 0))
         self.pkg_search_entry.bind("<KeyRelease>", lambda e: self._filter_package_list())
-
-        self.pkg_third_party_var = ctk.BooleanVar(value=False)
-        ctk.CTkCheckBox(
-            pkg_header,
-            text="3rd party only",
-            variable=self.pkg_third_party_var,
-            command=self.refresh_installed_packages,
-            width=110,
-            font=ctk.CTkFont(size=11)
-        ).pack(side="right", padx=4)
 
         ctk.CTkButton(
             pkg_header,
@@ -289,7 +314,7 @@ class FridaCTFAssistant(ctk.CTk):
         ).pack(side="right", padx=6)
 
         # Scrollable list of packages
-        self.pkg_list_frame = ctk.CTkScrollableFrame(pkg_box, corner_radius=6)
+        self.pkg_list_frame = ctk.CTkScrollableFrame(self.pkg_box, corner_radius=6)
         self.pkg_list_frame.pack(fill="both", expand=True, padx=12, pady=(4, 10))
         self.all_installed_packages = []
 
@@ -724,46 +749,301 @@ class FridaCTFAssistant(ctk.CTk):
             self.hook_pkg_entry.insert(0, pkg)
             self.tabview.set("💉 Frida Hooking Studio")
 
+    # -------------------------------------------------------------------------
+    # APK Triage & Unpack (Rev Engine Integration)
+    # -------------------------------------------------------------------------
+    def _run_apk_triage(self, apk_path: Optional[str] = None):
+        if not apk_path:
+            apk_path = self.apk_entry.get().strip()
+
+        if not apk_path or not os.path.exists(apk_path):
+            current_pkg = self.lbl_pkg.cget("text")
+            if current_pkg and current_pkg != "-" and self.selected_device_id:
+                self._pull_package_apk(current_pkg)
+                return
+            messagebox.showerror("Error", "Pilih file APK terlebih dahulu atau klik 'Tarik APK' pada salah satu package!")
+            return
+
+        self.set_status(f"Memindai & Triage {os.path.basename(apk_path)} (Rev CTF Engine)...")
+
+        def _worker():
+            report = self.triage.triage_apk(apk_path)
+            self.last_triage_result = report
+            self.after(0, lambda: self._render_triage_result(report))
+            rec = report.get("recommended_template", "")
+            self.set_status(f"Triage selesai: Rekomendasi -> {rec}")
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _render_triage_result(self, report: Dict[str, Any]):
+        for widget in self.triage_card.winfo_children():
+            widget.destroy()
+
+        if not report.get("success"):
+            ctk.CTkLabel(
+                self.triage_card,
+                text=f"❌ Error Triage: {report.get('error', 'Gagal membedah APK')}",
+                text_color="#f87171"
+            ).pack(padx=12, pady=10)
+            try:
+                self.triage_card.pack(fill="x", padx=10, pady=(0, 6), before=self.pkg_box)
+            except Exception:
+                self.triage_card.pack(fill="x", padx=10, pady=(0, 6))
+            return
+
+        # Header Row
+        head_row = ctk.CTkFrame(self.triage_card, fg_color="transparent")
+        head_row.pack(fill="x", padx=12, pady=(10, 4))
+
+        ctk.CTkLabel(
+            head_row,
+            text="⚡ HASIL STATIC TRIAGE & REKOMENDASI (REV CTF ENGINE):",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            text_color="#38bdf8"
+        ).pack(side="left")
+
+        ctk.CTkLabel(
+            head_row,
+            text=f"Scan: {report.get('raw_strings_count', 0):,} strings",
+            font=ctk.CTkFont(size=11),
+            text_color="#94a3b8"
+        ).pack(side="left", padx=10)
+
+        # 1. Flags Found Box (If any)
+        flags = report.get("flags_found", [])
+        if flags:
+            flag_box = ctk.CTkFrame(self.triage_card, fg_color="#064e3b", corner_radius=6, border_width=1, border_color="#10b981")
+            flag_box.pack(fill="x", padx=12, pady=4)
+            ctk.CTkLabel(
+                flag_box,
+                text=f"🚩 FLAG / KEY DITEMUKAN DALAM APK:\n" + "\n".join(flags),
+                font=ctk.CTkFont(family="Consolas", size=13, weight="bold"),
+                text_color="#34d399",
+                justify="left"
+            ).pack(padx=10, pady=8, anchor="w")
+
+        # 2. Findings Badges / Bullets
+        findings = report.get("findings", [])
+        if findings:
+            find_box = ctk.CTkFrame(self.triage_card, fg_color="#1e293b", corner_radius=6)
+            find_box.pack(fill="x", padx=12, pady=4)
+            for f in findings:
+                ctk.CTkLabel(
+                    find_box,
+                    text=f"• {f}",
+                    font=ctk.CTkFont(size=11),
+                    text_color="#e2e8f0"
+                ).pack(anchor="w", padx=8, pady=2)
+
+        # 3. Recommendation Box
+        rec_tpl = report.get("recommended_template", "01_String_Equals_Sniffer")
+        rec_reason = report.get("recommended_reason", "")
+
+        rec_box = ctk.CTkFrame(self.triage_card, fg_color="#172554", corner_radius=6, border_width=1, border_color="#3b82f6")
+        rec_box.pack(fill="x", padx=12, pady=(4, 10))
+
+        rec_head = ctk.CTkFrame(rec_box, fg_color="transparent")
+        rec_head.pack(fill="x", padx=10, pady=(6, 2))
+
+        ctk.CTkLabel(
+            rec_head,
+            text=f"🎯 REKOMENDASI HOOK: {rec_tpl}",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color="#60a5fa"
+        ).pack(side="left")
+
+        ctk.CTkButton(
+            rec_head,
+            text="👉 Terapkan Hook & Buka Studio",
+            width=230,
+            height=28,
+            fg_color="#2563eb",
+            hover_color="#1d4ed8",
+            font=ctk.CTkFont(weight="bold"),
+            command=lambda: self._apply_recommended_hook(rec_tpl)
+        ).pack(side="right")
+
+        if rec_reason:
+            ctk.CTkLabel(
+                rec_box,
+                text=rec_reason,
+                font=ctk.CTkFont(size=11),
+                text_color="#bfdbfe",
+                wraplength=800,
+                justify="left"
+            ).pack(anchor="w", padx=10, pady=(0, 6))
+
+        # Show the triage card in Tab 1
+        try:
+            self.triage_card.pack(fill="x", padx=10, pady=(0, 6), before=self.pkg_box)
+        except Exception:
+            self.triage_card.pack(fill="x", padx=10, pady=(0, 6))
+
+    def _unpack_apk_folder(self):
+        apk_path = self.apk_entry.get().strip()
+        if not apk_path or not os.path.exists(apk_path):
+            current_pkg = self.lbl_pkg.cget("text")
+            if current_pkg and current_pkg != "-" and self.selected_device_id:
+                self._pull_package_apk(current_pkg)
+                return
+            messagebox.showerror("Error", "Pilih file APK yang valid terlebih dahulu!")
+            return
+
+        self.set_status(f"Mengekstrak / Unpack {os.path.basename(apk_path)}...")
+        ok, res = self.triage.unpack_apk(apk_path)
+        if ok:
+            self.set_status(f"APK diekstrak ke: {res}")
+            # Open directory in Windows Explorer
+            try:
+                if os.name == "nt":
+                    os.startfile(res)
+                else:
+                    subprocess.Popen(["xdg-open", res])
+            except Exception:
+                pass
+            messagebox.showinfo("Unpack Sukses", f"Folder hasil ekstrak APK dibuka:\n{res}")
+        else:
+            messagebox.showerror("Gagal Unpack", f"Gagal mengekstrak APK: {res}")
+
+    def _pull_package_apk(self, pkg_name: str):
+        if not self.selected_device_id:
+            messagebox.showerror("Error", "Device emulator tidak terhubung!")
+            return
+
+        self.set_status(f"Menarik (Pull) base.apk {pkg_name} dari emulator...")
+
+        def _worker():
+            ok, res = self.adb.pull_apk(self.selected_device_id, pkg_name)
+            if ok:
+                self.after(0, lambda: self._on_apk_pulled(pkg_name, res))
+            else:
+                self.after(0, lambda: messagebox.showerror("Gagal Tarik APK", f"Gagal menarik APK {pkg_name}:\n{res}"))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_apk_pulled(self, pkg_name: str, local_path: str):
+        self.apk_entry.delete(0, "end")
+        self.apk_entry.insert(0, local_path)
+        self._load_apk_info(local_path)
+        self.set_status(f"APK {pkg_name} berhasil ditarik ke PC!")
+        self._run_apk_triage(local_path)
+
+    def _apply_recommended_hook(self, template_key: str):
+        if template_key in TEMPLATES:
+            self.template_combo.set(template_key)
+            self._on_template_selected(template_key)
+
+        pkg = self.lbl_pkg.cget("text")
+        if pkg and pkg != "-":
+            self.hook_pkg_entry.delete(0, "end")
+            self.hook_pkg_entry.insert(0, pkg)
+
+        self.tabview.set("💉 Frida Hooking Studio")
+        self.set_status(f"Rekomendasi '{template_key}' dimuat untuk target '{self.hook_pkg_entry.get().strip()}'. Tinggal klik START HOOK!")
+
+    # -------------------------------------------------------------------------
+    # Package Listing & Filters
+    # -------------------------------------------------------------------------
     def refresh_installed_packages(self):
         if not self.selected_device_id:
             return
-        third_party = getattr(self, "pkg_third_party_var", None)
-        only_third = third_party.get() if third_party else False
-        packages = self.adb.list_installed_packages(self.selected_device_id, third_party_only=only_third)
+        packages = self.adb.get_detailed_packages(self.selected_device_id)
         self.all_installed_packages = packages
-        self._display_packages(packages)
+        self._filter_package_list()
 
-    def _display_packages(self, packages: List[str]):
+    def _filter_package_list(self):
+        if not hasattr(self, "all_installed_packages"):
+            return
+
+        cat_filter = self.pkg_filter_var.get() if hasattr(self, "pkg_filter_var") else "Semua"
+        query = self.pkg_search_entry.get().strip().lower() if hasattr(self, "pkg_search_entry") else ""
+
+        filtered = []
+        for item in self.all_installed_packages:
+            pkg = item.get("package", "")
+            cat = item.get("category", "SYSTEM")
+
+            # Category filter
+            if cat_filter == "⭐ Target CTF" and cat != "CTF_TARGET":
+                continue
+            if cat_filter == "👤 User App" and cat not in ("CTF_TARGET", "USER_APP"):
+                continue
+
+            # Query search
+            if query and query not in pkg.lower():
+                continue
+
+            filtered.append(item)
+
+        self._display_packages(filtered)
+
+    def _display_packages(self, packages: List[Dict[str, Any]]):
         for widget in self.pkg_list_frame.winfo_children():
             widget.destroy()
 
         if not packages:
-            ctk.CTkLabel(self.pkg_list_frame, text="Tidak ada packages ditemukan.", text_color="#94a3b8").pack(pady=10)
+            ctk.CTkLabel(self.pkg_list_frame, text="Tidak ada packages yang cocok dengan filter.", text_color="#94a3b8").pack(pady=10)
             return
 
-        for p in packages:
+        for item in packages:
+            pkg = item.get("package", "")
+            cat = item.get("category", "SYSTEM")
+
             row = ctk.CTkFrame(self.pkg_list_frame, fg_color="#181b20", corner_radius=6)
             row.pack(fill="x", pady=2, padx=4)
 
-            ctk.CTkLabel(row, text=p, font=ctk.CTkFont(family="Consolas", size=11)).pack(side="left", padx=8, pady=4)
+            # Badge category
+            if cat == "CTF_TARGET":
+                badge_bg = "#065f46"
+                badge_txt_color = "#34d399"
+                badge_lbl = "⭐ TARGET CTF"
+            elif cat == "USER_APP":
+                badge_bg = "#1e3a8a"
+                badge_txt_color = "#93c5fd"
+                badge_lbl = "👤 USER"
+            else:
+                badge_bg = "#334155"
+                badge_txt_color = "#94a3b8"
+                badge_lbl = "⚙️ SYS"
 
+            badge = ctk.CTkFrame(row, fg_color=badge_bg, corner_radius=4)
+            badge.pack(side="left", padx=(6, 8), pady=4)
+            ctk.CTkLabel(
+                badge,
+                text=badge_lbl,
+                font=ctk.CTkFont(size=10, weight="bold"),
+                text_color=badge_txt_color
+            ).pack(padx=6, pady=1)
+
+            # Package Name
+            ctk.CTkLabel(
+                row,
+                text=pkg,
+                font=ctk.CTkFont(family="Consolas", size=11, weight="bold" if cat == "CTF_TARGET" else "normal"),
+                text_color="#f8fafc" if cat == "CTF_TARGET" else "#cbd5e1"
+            ).pack(side="left", padx=2, pady=4)
+
+            # Action Buttons: Set Target & Pull APK
             btn_set = ctk.CTkButton(
                 row,
                 text="🎯 Set Target",
-                width=80,
+                width=85,
                 height=24,
                 fg_color="#0284c7",
-                command=lambda name=p: self._set_package_target(name)
+                command=lambda name=pkg: self._set_package_target(name)
             )
             btn_set.pack(side="right", padx=4, pady=4)
 
-    def _filter_package_list(self):
-        query = self.pkg_search_entry.get().strip().lower()
-        if not query:
-            self._display_packages(self.all_installed_packages)
-        else:
-            filtered = [p for p in self.all_installed_packages if query in p.lower()]
-            self._display_packages(filtered)
+            btn_pull = ctk.CTkButton(
+                row,
+                text="📥 Tarik APK",
+                width=85,
+                height=24,
+                fg_color="#0f766e",
+                hover_color="#0d9488",
+                command=lambda name=pkg: self._pull_package_apk(name)
+            )
+            btn_pull.pack(side="right", padx=(0, 4), pady=4)
 
     def _set_package_target(self, pkg_name: str):
         self.hook_pkg_entry.delete(0, "end")

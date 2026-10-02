@@ -224,6 +224,110 @@ class ADBManager:
                         packages.append(pkg)
         return sorted(packages)
 
+    def get_detailed_packages(self, device_id: str) -> List[Dict[str, Any]]:
+        """
+        Lists all packages on device with categorization:
+        - CTF Target Candidate (non-OEM, 3rd party, challenge names)
+        - User Installed (/data/app)
+        - System / OEM
+        """
+        # 1. Get 3rd party packages
+        ret_3rd, out_3rd, _ = self.run_adb(["shell", "pm", "list", "packages", "-3"], device_id=device_id, timeout=8)
+        third_party_set = set()
+        if ret_3rd == 0:
+            for line in out_3rd.splitlines():
+                if line.startswith("package:"):
+                    third_party_set.add(line.replace("package:", "").strip())
+
+        # 2. Get packages with path (-f)
+        ret_f, out_f, _ = self.run_adb(["shell", "pm", "list", "packages", "-f"], device_id=device_id, timeout=10)
+        detailed_list = []
+        seen = set()
+
+        if ret_f == 0:
+            for line in out_f.splitlines():
+                line = line.strip()
+                if line.startswith("package:"):
+                    rest = line[8:]
+                    if "=" in rest:
+                        apk_path, pkg_name = rest.rsplit("=", 1)
+                        pkg_name = pkg_name.strip()
+                        apk_path = apk_path.strip()
+                    else:
+                        pkg_name = rest.strip()
+                        apk_path = ""
+
+                    if not pkg_name or pkg_name in seen:
+                        continue
+                    seen.add(pkg_name)
+
+                    is_user = (pkg_name in third_party_set) or ("/data/app" in apk_path)
+                    
+                    # Heuristic for CTF / Challenge candidate
+                    lower_pkg = pkg_name.lower()
+                    oem_prefixes = [
+                        "com.google.android.", "com.android.", "com.qualcomm.",
+                        "com.google.ar.", "android"
+                    ]
+                    is_oem = any(lower_pkg.startswith(p) for p in oem_prefixes)
+
+                    is_ctf = False
+                    if is_user and not is_oem:
+                        is_ctf = True
+
+                    chall_keywords = ["ctf", "challenge", "crackme", "hack", "flag", "rev", "vuln", "target", "sample", "test", "root", "magisk"]
+                    if any(k in lower_pkg for k in chall_keywords):
+                        is_ctf = True
+
+                    if is_ctf:
+                        category = "CTF_TARGET"
+                    elif is_user:
+                        category = "USER_APP"
+                    else:
+                        category = "SYSTEM"
+
+                    detailed_list.append({
+                        "package": pkg_name,
+                        "path": apk_path,
+                        "is_user": is_user,
+                        "is_ctf": is_ctf,
+                        "category": category
+                    })
+
+        def sort_key(item):
+            cat_priority = {"CTF_TARGET": 0, "USER_APP": 1, "SYSTEM": 2}
+            return (cat_priority.get(item["category"], 3), item["package"])
+
+        detailed_list.sort(key=sort_key)
+        return detailed_list
+
+    def pull_apk(self, device_id: str, package_name: str, dest_dir: str = "pulled_apks") -> Tuple[bool, str]:
+        """Pulls base.apk of an installed package from device to local machine."""
+        ret, stdout, stderr = self.run_adb(["shell", "pm", "path", package_name], device_id=device_id, timeout=8)
+        if ret != 0 or not stdout.strip():
+            return False, f"Tidak dapat menemukan path APK untuk {package_name}: {stderr}"
+
+        remote_path = ""
+        for line in stdout.splitlines():
+            line = line.strip()
+            if line.startswith("package:"):
+                remote_path = line.replace("package:", "").strip()
+                if remote_path.endswith("base.apk"):
+                    break
+
+        if not remote_path:
+            return False, f"Path APK untuk {package_name} kosong!"
+
+        dest_dir = os.path.abspath(dest_dir)
+        os.makedirs(dest_dir, exist_ok=True)
+        local_filename = f"{package_name}.apk"
+        local_dest = os.path.join(dest_dir, local_filename)
+
+        ret, out, err = self.run_adb(["pull", remote_path, local_dest], device_id=device_id, timeout=60)
+        if ret == 0 and os.path.exists(local_dest):
+            return True, local_dest
+        return False, f"Gagal menarik APK: {err or out}"
+
     def launch_app(self, device_id: str, package_name: str) -> Tuple[bool, str]:
         """Launch application using monkey launcher."""
         cmd = ["shell", "monkey", "-p", package_name, "-c", "android.intent.category.LAUNCHER", "1"]
