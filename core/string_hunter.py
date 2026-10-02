@@ -167,7 +167,6 @@ class StringHunter:
 
         # 8. Base32 Encoded Flags
         try:
-            import base64
             # Look for Base32 patterns
             for m in re.finditer(rb"[A-Z2-7]{16,}={0,6}", data):
                 cand_b32 = m.group(0)

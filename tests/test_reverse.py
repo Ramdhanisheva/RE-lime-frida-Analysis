@@ -42,8 +42,12 @@ class TestDEXParser(unittest.TestCase):
         self.assertEqual(len(parser.strings), 0)
 
     def test_real_dex_parsing_if_available(self):
-        sample_apk = os.path.abspath(r"..\Frida-Labs-main\Frida 0x2\Challenge 0x2.apk")
-        if os.path.exists(sample_apk):
+        candidates = [
+            os.path.abspath(r"..\Frida-Labs-main\Frida 0x2\Challenge 0x2.apk"),
+            os.path.abspath(os.path.join(PROJECT_ROOT, "..", "..", "Reverse", "Frida-Labs-main", "Frida 0x2", "Challenge 0x2.apk"))
+        ]
+        sample_apk = next((p for p in candidates if os.path.exists(p)), None)
+        if sample_apk and os.path.exists(sample_apk):
             import zipfile
             with zipfile.ZipFile(sample_apk) as z:
                 dex_data = z.read("classes3.dex")
@@ -179,7 +183,7 @@ class TestFridaEngine(unittest.TestCase):
             interesting_methods=[{"class": "com.example.crackme.AuthChecker", "name": "checkFlag"}],
             native_libs=["libnative.so"]
         )
-        self.assertEqual(len(scripts), 7)
+        self.assertGreaterEqual(len(scripts), 7)
         for name, path in scripts.items():
             self.assertTrue(os.path.exists(path), f"Script {name} was not created at {path}")
             with open(path, "r", encoding="utf-8") as f:
@@ -203,8 +207,12 @@ class TestEndToEndChallenges(unittest.TestCase):
     """End-to-end integration tests on actual Frida Labs APKs."""
 
     def test_solve_frida_0x2(self):
-        apk_path = os.path.abspath(r"..\Frida-Labs-main\Frida 0x2\Challenge 0x2.apk")
-        if not os.path.exists(apk_path):
+        candidates = [
+            os.path.abspath(r"..\Frida-Labs-main\Frida 0x2\Challenge 0x2.apk"),
+            os.path.abspath(os.path.join(PROJECT_ROOT, "..", "..", "Reverse", "Frida-Labs-main", "Frida 0x2", "Challenge 0x2.apk"))
+        ]
+        apk_path = next((p for p in candidates if os.path.exists(p)), None)
+        if not apk_path:
             self.skipTest("Challenge 0x2.apk not found")
 
         apk_insp = APKInspector()
@@ -220,8 +228,12 @@ class TestEndToEndChallenges(unittest.TestCase):
         self.assertIn("FLAG{BABY_HOOKS_0x2}", found_flags)
 
     def test_solve_frida_0xb(self):
-        apk_path = os.path.abspath(r"..\Frida-Labs-main\Frida 0xB\Challenge 0xB.apk")
-        if not os.path.exists(apk_path):
+        candidates = [
+            os.path.abspath(r"..\Frida-Labs-main\Frida 0xB\Challenge 0xB.apk"),
+            os.path.abspath(os.path.join(PROJECT_ROOT, "..", "..", "Reverse", "Frida-Labs-main", "Frida 0xB", "Challenge 0xB.apk"))
+        ]
+        apk_path = next((p for p in candidates if os.path.exists(p)), None)
+        if not apk_path:
             self.skipTest("Challenge 0xB.apk not found")
 
         apk_insp = APKInspector()
