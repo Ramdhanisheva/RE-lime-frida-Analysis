@@ -89,7 +89,7 @@ Java.perform(function() {
                         s1_l.indexOf("hacktoday") !== -1 || s2_l.indexOf("hacktoday") !== -1 ||
                         s1_l.indexOf("ctf") !== -1 || s2_l.indexOf("ctf") !== -1 ||
                         s1_l.indexOf("key") !== -1 || s2_l.indexOf("key") !== -1) {
-                        console.log("\n[🚩 BINGO String.equals]");
+                        console.log("\\n[🚩 BINGO String.equals]");
                         console.log("   -> Value A (Target/Input) : " + s1);
                         console.log("   -> Value B (Target/Input) : " + s2);
                     }
@@ -109,7 +109,7 @@ Java.perform(function() {
                 var strA = bytesToString(a);
                 var strB = bytesToString(b);
                 if (strA || strB) {
-                    console.log("\n[🚩 BINGO Arrays.equals byte[]]");
+                    console.log("\\n[🚩 BINGO Arrays.equals byte[]]");
                     console.log("   -> Bytes A (ASCII) : " + strA + " [Hex: " + bytesToHex(a) + "]");
                     console.log("   -> Bytes B (ASCII) : " + strB + " [Hex: " + bytesToHex(b) + "]");
                 }
@@ -117,6 +117,7 @@ Java.perform(function() {
             return this.equals(a, b);
         };
     } catch(e) {}
+
 
 
     // 3. CRYPTOGRAPHY SNIFFER (AES / DES / RSA)
@@ -202,7 +203,7 @@ Java.perform(function() {
                     s1.indexOf("{") !== -1 || s2.indexOf("{") !== -1 ||
                     s1_l.indexOf("hacktoday") !== -1 || s2_l.indexOf("hacktoday") !== -1 ||
                     s1_l.indexOf("ctf") !== -1 || s2_l.indexOf("ctf") !== -1) {
-                    console.log("\n[🚩 BINGO String.equals]");
+                    console.log("\\n[🚩 BINGO String.equals]");
                     console.log("   -> Expected / Input: " + s1);
                     console.log("   -> Input / Expected: " + s2);
                 }
@@ -213,6 +214,7 @@ Java.perform(function() {
         }
         return this.equals(obj);
     };
+
 
 
     var Arrays = Java.use("java.util.Arrays");

@@ -138,12 +138,40 @@ class APKTriage:
                 report["raw_strings_count"] = len(all_dex_strings)
                 joined_text = " \n ".join(all_dex_strings[:50000])
 
-                # 1. Search for Flags
+                # 1. Search for Flags (Plaintext + Base64 auto-decode)
                 found_flags = set()
                 for pat in self.FLAG_PATTERNS:
                     for m in pat.finditer(joined_text):
                         found_flags.add(m.group())
+
+                # Search Base64 strings that decode to flag/text
+                b64_pat = re.compile(r"(?:[A-Za-z0-9+/]{4}){3,}(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?")
+                import base64
+                for b64_match in b64_pat.finditer(joined_text):
+                    candidate = b64_match.group()
+                    if len(candidate) >= 8 and len(candidate) <= 200:
+                        try:
+                            decoded = base64.b64decode(candidate).decode('utf-8', errors='ignore')
+                            if len(decoded) > 4 and any(c.isprintable() for c in decoded):
+                                for pat in self.FLAG_PATTERNS:
+                                    if pat.search(decoded):
+                                        found_flags.add(f"[Base64 Decoded: {candidate}] -> {decoded}")
+                        except Exception:
+                            pass
+
                 report["flags_found"] = sorted(list(found_flags))
+
+                # Export extracted readable strings to strings.txt for user inspection
+                strings_dump_path = os.path.join(self.workspace_dir, f"strings_{os.path.basename(apk_path)}.txt")
+                try:
+                    with open(strings_dump_path, "w", encoding="utf-8", errors="ignore") as sf:
+                        sf.write(f"=== STRINGS DUMP FOR {os.path.basename(apk_path)} ===\n\n")
+                        for st in sorted(set(all_dex_strings)):
+                            if len(st) >= 4:
+                                sf.write(st + "\n")
+                    report["strings_file"] = strings_dump_path
+                except Exception:
+                    pass
 
                 # 2. Check Root Detection
                 root_found = [ind for ind in self.ROOT_INDICATORS if ind in joined_text]
@@ -160,10 +188,15 @@ class APKTriage:
                     lib_names = set(os.path.basename(l) for l in native_libs)
                     report["findings"].append(f"⚙️ Native Library Terdeteksi: {', '.join(list(lib_names)[:4])}")
 
-                # 5. Check String Validation / Equals
+                # 5. Check String Validation / Hidden Methods
                 string_found = [ind for ind in self.STRING_CHECK_INDICATORS if ind in joined_text]
                 if string_found:
                     report["findings"].append(f"🔍 String / Flag Validator Terdeteksi: {', '.join(string_found[:3])}")
+
+                # Check for hidden flag methods like get_flag, getFlag
+                hidden_methods = [m for m in ["get_flag", "getFlag", "revealFlag", "solve", "decodeFlag"] if m in joined_text]
+                if hidden_methods:
+                    report["findings"].append(f"🎯 Target Method Terdeteksi: {', '.join(hidden_methods)}")
 
                 # 6. Check Dynamic DEX Loading
                 dex_loader_found = [ind for ind in self.DEX_LOADER_INDICATORS if ind in joined_text]
@@ -176,15 +209,12 @@ class APKTriage:
                     report["findings"].append(f"🌐 SSL Pinning Terdeteksi: {', '.join(ssl_found[:2])}")
 
                 # Heuristic Frida Template Recommendation
-                # Priority:
-                # 1. If Root Detection is present -> MUST Bypass Root first or app crashes!
-                # 2. If Native libs present & no direct java crypto -> 04_Native_Open_Strlen_Sniffer
-                # 3. If Crypto -> 02_Crypto_Sniffer_AES_RSA
-                # 4. If DEX Loader -> 08_Dex_Memory_Dumper
-                # 5. Default/String check -> 01_String_Equals_Sniffer
                 if root_found:
                     report["recommended_template"] = "03_Root_Detection_Bypass"
                     report["recommended_reason"] = "Aplikasi memiliki proteksi Root Detection (su/RootBeer). Jalankan bypass ini agar aplikasi tidak force close di emulator root!"
+                elif hidden_methods:
+                    report["recommended_template"] = "06_Java_Choose_Instance_Invoker"
+                    report["recommended_reason"] = f"Terdeteksi method ({', '.join(hidden_methods)}). Gunakan invoker untuk memanggil method tersebut secara langsung!"
                 elif crypto_found:
                     report["recommended_template"] = "02_Crypto_Sniffer_AES_RSA"
                     report["recommended_reason"] = "Terdeteksi operasi enkripsi (AES/Cipher/SecretKey). Hook ini otomatis menangkap Secret Key, IV, dan Plaintext saat enkripsi/dekripsi berjalan!"
@@ -222,3 +252,4 @@ class APKTriage:
             return True, target_dir
         except Exception as e:
             return False, f"Gagal unpack APK: {e}"
+
