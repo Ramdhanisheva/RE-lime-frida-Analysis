@@ -240,7 +240,98 @@ Java.perform(function() {
             } catch(e) {}
         });
     } catch(e) {}
+
+    // 7. DYNAMIC AUTO-EXPLORER & METHOD AUTO-INVOKER (AUTO-SOLVER ENGINE)
+    setTimeout(function() {
+        Java.perform(function() {
+            try {
+                Java.enumerateLoadedClasses({
+                    onMatch: function(className) {
+                        if (!className.startsWith("android.") && !className.startsWith("java.") &&
+                            !className.startsWith("androidx.") && !className.startsWith("com.google.") &&
+                            !className.startsWith("kotlin.") && !className.startsWith("io.flutter.")) {
+                            
+                            try {
+                                var Cls = Java.use(className);
+                                var methods = Cls.class.getDeclaredMethods();
+                                
+                                methods.forEach(function(m) {
+                                    var mName = m.getName();
+                                    var mName_l = mName.toLowerCase();
+                                    
+                                    // Target method patterns: flag, solve, reveal, decode, secret, check
+                                    if (mName_l.indexOf("flag") !== -1 || mName_l.indexOf("solve") !== -1 ||
+                                        mName_l.indexOf("reveal") !== -1 || mName_l.indexOf("secret") !== -1 ||
+                                        mName_l.indexOf("get_") !== -1 || mName_l.indexOf("decode") !== -1) {
+                                        
+                                        var paramTypes = m.getParameterTypes();
+                                        console.log("\\n[🎯 AUTO-SOLVER] Ditemukan target method: " + className + "." + mName + "()");
+                                        
+                                        // A. No args -> Auto invoke
+                                        if (paramTypes.length === 0) {
+                                            try {
+                                                var res = Cls[mName]();
+                                                console.log("[🚩 BINGO Auto-Invoked Static] " + className + "." + mName + "() -> " + res);
+                                            } catch(e) {}
+                                            
+                                            // Try instance via Java.choose
+                                            Java.choose(className, {
+                                                onMatch: function(inst) {
+                                                    try {
+                                                        var res = inst[mName]();
+                                                        console.log("[🚩 BINGO Auto-Invoked Instance] " + className + "." + mName + "() -> " + res);
+                                                    } catch(err) {}
+                                                },
+                                                onComplete: function() {}
+                                            });
+                                        }
+                                        
+                                        // B. 1 Integer parameter -> Try common CTF numbers (4919, 1337, 512, etc.)
+                                        else if (paramTypes.length === 1 && paramTypes[0].getName() === "int") {
+                                            var candidateInts = [4919, 1337, 512, 100, 0, 1, 42, 256, 1024, 0x1337, 7777];
+                                            candidateInts.forEach(function(val) {
+                                                try {
+                                                    var res = Cls[mName](val);
+                                                    console.log("[🚩 BINGO Auto-Invoked with " + val + "] " + className + "." + mName + "(" + val + ") -> " + res);
+                                                } catch(err) {}
+                                            });
+                                        }
+                                    }
+                                });
+
+                                // Check static variables (e.g. Checker.code = 512)
+                                var fields = Cls.class.getDeclaredFields();
+                                fields.forEach(function(f) {
+                                    var fName = f.getName().toLowerCase();
+                                    if (fName === "code" || fName === "flag" || fName === "key" || fName === "secret" || fName === "isvalid") {
+                                        try {
+                                            f.setAccessible(true);
+                                            var val = f.get(null);
+                                            console.log("\\n[💾 AUTO-SOLVER] Ditemukan static field: " + className + "." + f.getName() + " = " + val);
+                                            if (typeof val === "number" && val === 0) {
+                                                [512, 1337, 4919, 1, 100].forEach(function(testVal) {
+                                                    try {
+                                                        Cls[f.getName()].value = testVal;
+                                                        console.log("[⚡ AUTO-SET] Set " + className + "." + f.getName() + " = " + testVal);
+                                                    } catch(e) {}
+                                                });
+                                            }
+                                        } catch(e) {}
+                                    }
+                                });
+
+                            } catch(e) {}
+                        }
+                    },
+                    onComplete: function() {
+                        console.log("[*] Auto-Explorer selesai memindai semua method aplikasi.\\n");
+                    }
+                });
+            } catch(e) {}
+        });
+    }, 1500);
 });
+
 """,
 
     "01_Universal_Live_Method_Tracer": """/*
