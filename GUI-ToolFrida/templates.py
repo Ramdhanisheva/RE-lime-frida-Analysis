@@ -69,13 +69,18 @@ Java.perform(function() {
         };
     } catch(e) {}
 
-    // 2. STRING & BYTES COMPARISON (FLAG SNIFFER)
+    // 2. STRING & BYTES COMPARISON (FLAG SNIFFER - SAFE RE-ENTRANCY LOCK)
+    var inHook = false;
     try {
         var StringClass = Java.use("java.lang.String");
         StringClass.equals.implementation = function(obj) {
-            if (obj !== null) {
-                var s1 = this.toString();
-                var s2 = obj.toString();
+            if (inHook || obj === null) {
+                return this.equals(obj);
+            }
+            inHook = true;
+            try {
+                var s1 = "" + this;
+                var s2 = "" + obj;
                 if (s1.length > 2 && s2.length > 2 && s1 !== s2) {
                     var s1_l = s1.toLowerCase();
                     var s2_l = s2.toLowerCase();
@@ -84,37 +89,16 @@ Java.perform(function() {
                         s1_l.indexOf("hacktoday") !== -1 || s2_l.indexOf("hacktoday") !== -1 ||
                         s1_l.indexOf("ctf") !== -1 || s2_l.indexOf("ctf") !== -1 ||
                         s1_l.indexOf("key") !== -1 || s2_l.indexOf("key") !== -1) {
-                        console.log("\\n[🚩 BINGO String.equals]");
+                        console.log("\n[🚩 BINGO String.equals]");
                         console.log("   -> Value A (Target/Input) : " + s1);
                         console.log("   -> Value B (Target/Input) : " + s2);
                     }
                 }
+            } catch(err) {}
+            finally {
+                inHook = false;
             }
             return this.equals(obj);
-        };
-
-        StringClass.equalsIgnoreCase.implementation = function(obj) {
-            if (obj !== null) {
-                var s1 = this.toString();
-                var s2 = obj.toString();
-                if (s1.length > 2 && s2.length > 2 && s1 !== s2) {
-                    console.log("\\n[🚩 BINGO String.equalsIgnoreCase] " + s1 + " <---> " + s2);
-                }
-            }
-            return this.equalsIgnoreCase(obj);
-        };
-
-        StringClass.compareTo.overload('java.lang.String').implementation = function(anotherString) {
-            if (anotherString !== null) {
-                var s1 = this.toString();
-                var s2 = anotherString.toString();
-                if (s1.length > 3 && s2.length > 3 && s1 !== s2) {
-                    if (s1.indexOf("{") !== -1 || s2.indexOf("{") !== -1 || s1.indexOf("flag") !== -1) {
-                        console.log("\\n[🚩 BINGO String.compareTo] " + s1 + " <---> " + s2);
-                    }
-                }
-            }
-            return this.compareTo(anotherString);
         };
     } catch(e) {}
 
@@ -125,7 +109,7 @@ Java.perform(function() {
                 var strA = bytesToString(a);
                 var strB = bytesToString(b);
                 if (strA || strB) {
-                    console.log("\\n[🚩 BINGO Arrays.equals byte[]]");
+                    console.log("\n[🚩 BINGO Arrays.equals byte[]]");
                     console.log("   -> Bytes A (ASCII) : " + strA + " [Hex: " + bytesToHex(a) + "]");
                     console.log("   -> Bytes B (ASCII) : " + strB + " [Hex: " + bytesToHex(b) + "]");
                 }
@@ -133,6 +117,7 @@ Java.perform(function() {
             return this.equals(a, b);
         };
     } catch(e) {}
+
 
     // 3. CRYPTOGRAPHY SNIFFER (AES / DES / RSA)
     try {
@@ -200,37 +185,35 @@ Java.perform(function() {
 Java.perform(function() {
     console.log("[*] === Universal String.equals Sniffer Active ===");
     var StringClass = Java.use("java.lang.String");
+    var inHook = false;
 
     StringClass.equals.implementation = function(obj) {
-        if (obj !== null) {
-            var s1 = this.toString();
-            var s2 = obj.toString();
-            if (s1.length > 2 && s2.length > 2) {
-                if (s1.indexOf("flag") !== -1 || s2.indexOf("flag") !== -1 ||
-                    s1.indexOf("FLAG") !== -1 || s2.indexOf("FLAG") !== -1 ||
-                    s1.indexOf("HackToday") !== -1 || s2.indexOf("HackToday") !== -1 ||
+        if (inHook || obj === null) {
+            return this.equals(obj);
+        }
+        inHook = true;
+        try {
+            var s1 = "" + this;
+            var s2 = "" + obj;
+            if (s1.length > 2 && s2.length > 2 && s1 !== s2) {
+                var s1_l = s1.toLowerCase();
+                var s2_l = s2.toLowerCase();
+                if (s1_l.indexOf("flag") !== -1 || s2_l.indexOf("flag") !== -1 ||
                     s1.indexOf("{") !== -1 || s2.indexOf("{") !== -1 ||
-                    s1.indexOf("CTF") !== -1 || s2.indexOf("CTF") !== -1) {
-                    console.log("[BINGO String.equals]");
+                    s1_l.indexOf("hacktoday") !== -1 || s2_l.indexOf("hacktoday") !== -1 ||
+                    s1_l.indexOf("ctf") !== -1 || s2_l.indexOf("ctf") !== -1) {
+                    console.log("\n[🚩 BINGO String.equals]");
                     console.log("   -> Expected / Input: " + s1);
                     console.log("   -> Input / Expected: " + s2);
                 }
             }
+        } catch(e) {}
+        finally {
+            inHook = false;
         }
         return this.equals(obj);
     };
 
-    StringClass.equalsIgnoreCase.implementation = function(obj) {
-        if (obj !== null) {
-            var s1 = this.toString();
-            var s2 = obj.toString();
-            if (s1.indexOf("flag") !== -1 || s2.indexOf("flag") !== -1 ||
-                s1.indexOf("HackToday") !== -1 || s2.indexOf("HackToday") !== -1) {
-                console.log("[BINGO String.equalsIgnoreCase] S1: " + s1 + " | S2: " + s2);
-            }
-        }
-        return this.equalsIgnoreCase(obj);
-    };
 
     var Arrays = Java.use("java.util.Arrays");
     Arrays.equals.overload('[B', '[B').implementation = function(a, b) {
@@ -541,5 +524,22 @@ Java.perform(function() {
         } catch(e) {}
     });
 });
+""",
+
+    "11_Call_Static_Method_Frida0x2": """/*
+ * [CTF SOLVER] Panggil Static Method (Contoh: Frida-Labs 0x2)
+ * Memanggil MainActivity.get_flag(4919) langsung di runtime
+ */
+Java.perform(function() {
+    console.log("[*] Memanggil MainActivity.get_flag(4919)...");
+    try {
+        var MainActivity = Java.use("com.ad2001.frida0x2.MainActivity");
+        MainActivity.get_flag(4919);
+        console.log("[🚩 BINGO] get_flag(4919) berhasil dieksekusi! Lihat layar emulator!");
+    } catch(e) {
+        console.log("[-] Gagal memanggil method: " + e);
+    }
+});
 """
 }
+
