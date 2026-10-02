@@ -241,18 +241,17 @@ Java.perform(function() {
         });
     } catch(e) {}
 
-    // 7. ACTIVITY LIFECYCLE HOOK & DYNAMIC AUTO-INVOKER
+    // 7. ACTIVITY LIFECYCLE HOOK & METHOD AUTO-INVOKER
     try {
         var Activity = Java.use("android.app.Activity");
         Activity.onResume.implementation = function() {
             this.onResume();
-            var act = this;
-            var actClass = act.getClass().getName();
+            var actClass = this.getClass().getName();
             console.log("\\n[📱 ACTIVITY ACTIVE] " + actClass);
 
-            // Auto inspect methods on this active Activity
             try {
-                var methods = act.getClass().getDeclaredMethods();
+                var Cls = Java.use(actClass);
+                var methods = Cls.class.getDeclaredMethods();
                 methods.forEach(function(m) {
                     var mName = m.getName();
                     var mName_l = mName.toLowerCase();
@@ -260,29 +259,43 @@ Java.perform(function() {
                         mName_l.indexOf("reveal") !== -1 || mName_l.indexOf("secret") !== -1 ||
                         mName_l.indexOf("get_") !== -1 || mName_l.indexOf("code") !== -1) {
                         
-                        m.setAccessible(true);
                         var paramTypes = m.getParameterTypes();
-                        console.log("[🎯 AUTO-SOLVER] Menemukan target method pada Activity: " + mName + "()");
+                        console.log("[🎯 AUTO-SOLVER] Menemukan target method: " + mName + "()");
                         
-                        Java.scheduleOnMainThread(function() {
+                        // 1. Static call
+                        if (paramTypes.length === 0) {
                             try {
+                                var res = Cls[mName]();
+                                console.log("\\n[🚩 BINGO Auto-Invoked Static] " + actClass + "." + mName + "() -> " + res);
+                            } catch(e) {}
+                        } else if (paramTypes.length === 1 && paramTypes[0].getName() === "int") {
+                            var candidateInts = [4919, 1337, 512, 100, 0, 1, 42, 256, 1024, 0x1337];
+                            candidateInts.forEach(function(val) {
+                                try {
+                                    var res = Cls[mName](val);
+                                    console.log("\\n[🚩 BINGO Auto-Invoked Static with " + val + "] " + actClass + "." + mName + "(" + val + ") -> " + res);
+                                } catch(e) {}
+                            });
+                        }
+
+                        // 2. Instance call via Java.choose
+                        Java.choose(actClass, {
+                            onMatch: function(inst) {
                                 if (paramTypes.length === 0) {
-                                    var res = m.invoke(act, []);
-                                    console.log("\\n[🚩 BINGO Auto-Invoked] " + actClass + "." + mName + "() -> " + res);
-                                } else if (paramTypes.length === 1 && (paramTypes[0].getName() === "int" || paramTypes[0].getName() === "java.lang.Integer")) {
-                                    var IntegerClass = Java.use("java.lang.Integer");
-                                    var candidateInts = [4919, 1337, 512, 100, 0, 1, 42, 256, 1024, 0x1337, 7777];
-                                    candidateInts.forEach(function(val) {
+                                    try {
+                                        var res = inst[mName]();
+                                        console.log("\\n[🚩 BINGO Auto-Invoked Instance] " + actClass + "." + mName + "() -> " + res);
+                                    } catch(e) {}
+                                } else if (paramTypes.length === 1 && paramTypes[0].getName() === "int") {
+                                    [4919, 1337, 512, 100, 0, 1, 42, 256, 1024].forEach(function(val) {
                                         try {
-                                            var intObj = IntegerClass.valueOf(val);
-                                            var res = m.invoke(act, [intObj]);
-                                            console.log("\\n[🚩 BINGO Auto-Invoked with " + val + "] " + actClass + "." + mName + "(" + val + ") -> " + res);
+                                            var res = inst[mName](val);
+                                            console.log("\\n[🚩 BINGO Auto-Invoked Instance with " + val + "] " + actClass + "." + mName + "(" + val + ") -> " + res);
                                         } catch(e) {}
                                     });
                                 }
-                            } catch(err) {
-                                console.log("[-] Invoke error: " + err);
-                            }
+                            },
+                            onComplete: function() {}
                         });
                     }
                 });
@@ -313,24 +326,20 @@ Java.perform(function() {
                                         mName_l.indexOf("get_") !== -1 || mName_l.indexOf("decode") !== -1) {
                                         
                                         var paramTypes = m.getParameterTypes();
-                                        console.log("\\n[🎯 AUTO-SOLVER] Ditemukan class method: " + className + "." + mName + "()");
-                                        
-                                        Java.scheduleOnMainThread(function() {
-                                            if (paramTypes.length === 0) {
+                                        if (paramTypes.length === 0) {
+                                            try {
+                                                var res = Cls[mName]();
+                                                console.log("\\n[🚩 BINGO Auto-Invoked Static] " + className + "." + mName + "() -> " + res);
+                                            } catch(e) {}
+                                        } else if (paramTypes.length === 1 && paramTypes[0].getName() === "int") {
+                                            var candidateInts = [4919, 1337, 512, 100, 0, 1, 42, 256, 1024];
+                                            candidateInts.forEach(function(val) {
                                                 try {
-                                                    var res = Cls[mName]();
-                                                    console.log("\\n[🚩 BINGO Auto-Invoked Static] " + className + "." + mName + "() -> " + res);
-                                                } catch(e) {}
-                                            } else if (paramTypes.length === 1 && paramTypes[0].getName() === "int") {
-                                                var candidateInts = [4919, 1337, 512, 100, 0, 1, 42, 256, 1024];
-                                                candidateInts.forEach(function(val) {
-                                                    try {
-                                                        var res = Cls[mName](val);
-                                                        console.log("\\n[🚩 BINGO Auto-Invoked with " + val + "] " + className + "." + mName + "(" + val + ") -> " + res);
-                                                    } catch(err) {}
-                                                });
-                                            }
-                                        });
+                                                    var res = Cls[mName](val);
+                                                    console.log("\\n[🚩 BINGO Auto-Invoked with " + val + "] " + className + "." + mName + "(" + val + ") -> " + res);
+                                                } catch(err) {}
+                                            });
+                                        }
                                     }
                                 });
 
@@ -366,6 +375,7 @@ Java.perform(function() {
         });
     }, 1200);
 });
+
 
 
 """,
