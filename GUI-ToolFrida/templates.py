@@ -1,30 +1,29 @@
 """
-GUI-ToolFrida - Frida Script Templates for Android CTF Competitions
+GUI-ToolFrida - Frida Script Templates
 """
 
 TEMPLATES = {
-    "00_UNIVERSAL_AUTO_SOLVER_ALL_IN_ONE": """/*
+    "00_Universal_Analysis": """/*
  * ============================================================================
- * [CTF MASTER UNIVERSAL AUTO-SOLVER]
- * Bekerja otomatis untuk SEMUA tipe soal Android CTF:
+ * [Universal Analysis]
+ * Hooks aktif otomatis:
  * 1. Root & Magisk Bypass (File.exists, Runtime.exec, Build.TAGS)
  * 2. String & Bytes Comparison Sniffer (String.equals, Arrays.equals)
  * 3. Cryptography Sniffer (AES/DES/RSA Key, IV, Plaintext, Ciphertext, MessageDigest)
  * 4. Base64 & Hash Sniffer (Base64.decode, MD5, SHA-256)
  * 5. Storage Sniffer (SharedPreferences getString/putString)
- * 6. Toast & Logcat Sniffer (Mencegat pesan flag tersembunyi)
- * 7. Dynamic Method Finder (Mencari method *flag* / *secret* / *solve* di package)
+ * 6. Toast & Logcat Sniffer
+ * 7. Dynamic Method Finder (flag/secret/solve)
  * ============================================================================
  */
 Java.perform(function() {
-    console.log("========================================================");
-    console.log("[🔥 CTF MASTER AUTO-SOLVER] Universal Sniffer Aktif!");
-    console.log("-> 🛡️ Root & Emulator Bypass : AKTIF");
-    console.log("-> 🚩 String & Flag Sniffer  : AKTIF");
-    console.log("-> 🔐 Crypto (AES/RSA/Key)   : AKTIF");
-    console.log("-> 📦 Base64 & Storage       : AKTIF");
-    console.log("-> 📢 Toast & Logcat Sniffer : AKTIF");
-    console.log("========================================================\\n");
+    console.log("[Frida Analysis] Universal Analysis aktif.");
+    console.log("-> Root Bypass    : ON");
+    console.log("-> String Sniffer : ON");
+    console.log("-> Crypto Sniffer : ON");
+    console.log("-> Base64/Storage : ON");
+    console.log("-> Toast/Logcat   : ON");
+    console.log("-> Method Finder  : ON\\n");
 
     function bytesToHex(bytes) {
         if (!bytes) return "";
@@ -232,7 +231,7 @@ Java.perform(function() {
         ["d", "i", "v", "e", "w"].forEach(function(lvl) {
             try {
                 Log[lvl].overload('java.lang.String', 'java.lang.String').implementation = function(tag, msg) {
-                    if (msg && (msg.indexOf("flag") !== -1 || msg.indexOf("FLAG") !== -1 || msg.indexOf("HackToday") !== -1 || msg.indexOf("{") !== -1)) {
+                    if (msg && (msg.indexOf("flag") !== -1 || msg.indexOf("FLAG") !== -1 || msg.indexOf("HackToday") !== -1 || msg.indexOf("{") !== -1 || msg.indexOf("Decrypted") !== -1)) {
                         console.log("\\n[📝 Log." + lvl + "][" + tag + "] " + msg);
                     }
                     return this[lvl](tag, msg);
@@ -241,7 +240,130 @@ Java.perform(function() {
         });
     } catch(e) {}
 
-    // 7. ACTIVITY LIFECYCLE HOOK & METHOD AUTO-INVOKER
+    // 7. NATIVE C/C++ LOG & STRCMP SNIFFER
+    try {
+        var logPrint = Module.findExportByName(null, "__android_log_print");
+        if (logPrint) {
+            Interceptor.attach(logPrint, {
+                onEnter: function(args) {
+                    try {
+                        var tag = args[1].readCString();
+                        var fmt = args[2].readCString();
+                        var extra = "";
+                        try {
+                            if (!args[3].isNull()) extra = args[3].readCString();
+                        } catch(e3) {}
+                        var fullMsg = (tag ? "[" + tag + "] " : "") + (fmt || "") + (extra ? " " + extra : "");
+                        if (fullMsg.indexOf("flag") !== -1 || fullMsg.indexOf("FLAG") !== -1 ||
+                            fullMsg.indexOf("Decrypted") !== -1 || fullMsg.indexOf("{") !== -1 ||
+                            fullMsg.indexOf("Secret") !== -1 || fullMsg.indexOf("Password") !== -1) {
+                            console.log("\\n[🚩 BINGO Native Log] " + fullMsg);
+                        }
+                    } catch(eLog) {}
+                }
+            });
+        }
+    } catch(e) {}
+
+    try {
+        var strcmpAddr = Module.findExportByName(null, "strcmp");
+        if (strcmpAddr) {
+            Interceptor.attach(strcmpAddr, {
+                onEnter: function(args) {
+                    try {
+                        var mod = Process.findModuleByAddress(this.returnAddress);
+                        if (mod && (mod.path.indexOf("/data/") !== -1 || (mod.name.indexOf("lib") === 0 && mod.name.indexOf("libc.") === -1 && mod.name.indexOf("libart.") === -1 && mod.name.indexOf("liblog.") === -1 && mod.name.indexOf("libm.") === -1))) {
+                            var s1 = args[0].readCString();
+                            var s2 = args[1].readCString();
+                            if (s1 && s2 && s1 !== s2 && s1.length > 1 && s2.length > 1) {
+                                console.log("\\n[🚩 BINGO Native strcmp] (" + mod.name + ")");
+                                console.log("   -> Arg1: " + s1);
+                                console.log("   -> Arg2: " + s2);
+                            }
+                        }
+                    } catch(eCmp) {}
+                }
+            });
+        }
+    } catch(e) {}
+
+    // 8. APP NATIVE MODULES EXPORT SCANNER & JNI BYPASS
+    function scanAppNativeModules() {
+        try {
+            var modules = Process.enumerateModules();
+            modules.forEach(function(mod) {
+                if (mod.path.indexOf("/data/app/") !== -1 || (mod.name.indexOf("frida") !== -1 && mod.name.indexOf(".so") !== -1)) {
+                    try {
+                        var exports = mod.enumerateExports();
+                        exports.forEach(function(exp) {
+                            var expName = exp.name;
+                            var expLower = expName.toLowerCase();
+
+                            // JNI exports (Java_*)
+                            if (expName.indexOf("Java_") === 0) {
+                                if (expLower.indexOf("check") !== -1 || expLower.indexOf("flag") !== -1 ||
+                                    expLower.indexOf("cmp") !== -1 || expLower.indexOf("verify") !== -1) {
+                                    try {
+                                        Interceptor.attach(exp.address, {
+                                            onEnter: function(args) {
+                                                console.log("\\n[🎯 Native JNI Intercepted] " + expName);
+                                            },
+                                            onLeave: function(retval) {
+                                                var orig = retval.toInt32();
+                                                var targetRet = (expLower.indexOf("check") !== -1) ? 1337 : 1;
+                                                retval.replace(targetRet);
+                                                console.log("[🚩 BINGO Native JNI Override] " + expName + " retval: " + orig + " -> " + targetRet);
+                                            }
+                                        });
+                                    } catch(eJni) {}
+                                }
+                            }
+
+                            // Direct native functions like get_flag
+                            if (expLower === "get_flag" || expLower === "getflag" || expLower === "revealflag") {
+                                try {
+                                    console.log("[⚡ Calling Native Export] " + mod.name + "!" + expName + "(1, 2)...");
+                                    var f2 = new NativeFunction(exp.address, 'void', ['int', 'int']);
+                                    f2(1, 2);
+                                } catch(eCall2) {
+                                    try {
+                                        var f0 = new NativeFunction(exp.address, 'void', []);
+                                        f0();
+                                    } catch(eCall0) {}
+                                }
+                            }
+                        });
+                    } catch(eMod) {}
+                }
+            });
+        } catch(eAll) {}
+    }
+    scanAppNativeModules();
+    setTimeout(scanAppNativeModules, 1500);
+
+    // 9. HELPER TO INSTANTIATE CUSTOM OBJECT ARGUMENTS
+    function createCandidateArgObject(typeName) {
+        if (!typeName || typeName.startsWith("android.") || typeName.startsWith("java.")) return null;
+        try {
+            var Cls = Java.use(typeName);
+            var obj = null;
+            try { obj = Cls.$new(); } catch(e0) {
+                try { obj = Cls.$new(600, 600); } catch(e2) {
+                    try { obj = Cls.$new(1337); } catch(e1) {}
+                }
+            }
+            if (obj) {
+                try { obj.num1.value = 1234; } catch(e) {}
+                try { obj.num2.value = 4321; } catch(e) {}
+                try { obj.code.value = 512; } catch(e) {}
+            }
+            return obj;
+        } catch(e) {
+            return null;
+        }
+    }
+
+    // 10. ACTIVITY LIFECYCLE HOOK & METHOD AUTO-INVOKER
     try {
         var Activity = Java.use("android.app.Activity");
         Activity.onResume.implementation = function() {
@@ -258,11 +380,11 @@ Java.perform(function() {
                     if (mName_l.indexOf("flag") !== -1 || mName_l.indexOf("solve") !== -1 ||
                         mName_l.indexOf("reveal") !== -1 || mName_l.indexOf("secret") !== -1 ||
                         mName_l.indexOf("get_") !== -1 || mName_l.indexOf("code") !== -1) {
-                        
+
                         var paramTypes = m.getParameterTypes();
-                        console.log("[🎯 AUTO-SOLVER] Menemukan target method: " + mName + "()");
-                        
-                        // 1. Static call
+                        console.log("[🎯 AUTO-INVOKER] Menemukan target method: " + mName + "()");
+
+                        // Static invocation
                         if (paramTypes.length === 0) {
                             try {
                                 var res = Cls[mName]();
@@ -278,7 +400,7 @@ Java.perform(function() {
                             });
                         }
 
-                        // 2. Instance call via Java.choose
+                        // Instance invocation via Java.choose
                         Java.choose(actClass, {
                             onMatch: function(inst) {
                                 if (paramTypes.length === 0) {
@@ -293,6 +415,14 @@ Java.perform(function() {
                                             console.log("\\n[🚩 BINGO Auto-Invoked Instance with " + val + "] " + actClass + "." + mName + "(" + val + ") -> " + res);
                                         } catch(e) {}
                                     });
+                                } else if (paramTypes.length === 1) {
+                                    var customArg = createCandidateArgObject(paramTypes[0].getName());
+                                    if (customArg) {
+                                        try {
+                                            var res = inst[mName](customArg);
+                                            console.log("\\n[🚩 BINGO Auto-Invoked with Object] " + actClass + "." + mName + "(arg) -> " + res);
+                                        } catch(eObj) {}
+                                    }
                                 }
                             },
                             onComplete: function() {}
@@ -303,7 +433,7 @@ Java.perform(function() {
         };
     } catch(e) {}
 
-    // 8. DYNAMIC AUTO-EXPLORER & STATIC CLASS SCANNER
+    // 11. DYNAMIC AUTO-EXPLORER, CONSTRUCTOR HOOK & CLASS SCANNER
     setTimeout(function() {
         Java.perform(function() {
             try {
@@ -312,34 +442,115 @@ Java.perform(function() {
                         if (!className.startsWith("android.") && !className.startsWith("java.") &&
                             !className.startsWith("androidx.") && !className.startsWith("com.google.") &&
                             !className.startsWith("kotlin.") && !className.startsWith("io.flutter.")) {
-                            
+
                             try {
                                 var Cls = Java.use(className);
+
+                                // Hook constructors taking (int, int) -> override to (600, 600)
+                                try {
+                                    var inits = Cls.$init.overloads;
+                                    inits.forEach(function(initOvl) {
+                                        var argTypes = initOvl.argumentTypes.map(function(t) { return t.className; });
+                                        if (argTypes.length === 2 && argTypes[0] === "int" && argTypes[1] === "int") {
+                                            initOvl.implementation = function(a, b) {
+                                                console.log("[⚡ Constructor Hook] " + className + ".$init(" + a + ", " + b + ") -> Overriding to (600, 600)");
+                                                return this.$init(600, 600);
+                                            };
+                                        }
+                                    });
+                                } catch(eInit) {}
+
                                 var methods = Cls.class.getDeclaredMethods();
-                                
                                 methods.forEach(function(m) {
                                     var mName = m.getName();
                                     var mName_l = mName.toLowerCase();
-                                    
+
+                                    // Boolean check bypass (force return true)
+                                    if (mName_l.startsWith("check") || mName_l.startsWith("is") ||
+                                        mName_l.startsWith("verify") || mName_l.startsWith("validate") ||
+                                        mName_l.startsWith("equal") || mName_l.indexOf("valid") !== -1) {
+                                        try {
+                                            var retType = m.getReturnType().getName();
+                                            if (retType === "boolean") {
+                                                var overloads = Cls[mName].overloads;
+                                                overloads.forEach(function(ovl) {
+                                                    ovl.implementation = function() {
+                                                        console.log("\\n[🚩 BINGO Validator Bypass] " + className + "." + mName + "() -> Forced TRUE");
+                                                        return true;
+                                                    };
+                                                });
+                                            }
+                                        } catch(eBypass) {}
+                                    }
+
+                                    // Flag / Solve method auto-invoker
                                     if (mName_l.indexOf("flag") !== -1 || mName_l.indexOf("solve") !== -1 ||
                                         mName_l.indexOf("reveal") !== -1 || mName_l.indexOf("secret") !== -1 ||
                                         mName_l.indexOf("get_") !== -1 || mName_l.indexOf("decode") !== -1) {
-                                        
+
                                         var paramTypes = m.getParameterTypes();
+                                        var candidateInts = [4919, 1337, 512, 100, 0, 1, 42, 256, 1024];
+
+                                        // 1. Static call
                                         if (paramTypes.length === 0) {
                                             try {
                                                 var res = Cls[mName]();
                                                 console.log("\\n[🚩 BINGO Auto-Invoked Static] " + className + "." + mName + "() -> " + res);
                                             } catch(e) {}
                                         } else if (paramTypes.length === 1 && paramTypes[0].getName() === "int") {
-                                            var candidateInts = [4919, 1337, 512, 100, 0, 1, 42, 256, 1024];
                                             candidateInts.forEach(function(val) {
                                                 try {
                                                     var res = Cls[mName](val);
-                                                    console.log("\\n[🚩 BINGO Auto-Invoked with " + val + "] " + className + "." + mName + "(" + val + ") -> " + res);
+                                                    console.log("\\n[🚩 BINGO Auto-Invoked Static with " + val + "] " + className + "." + mName + "(" + val + ") -> " + res);
                                                 } catch(err) {}
                                             });
                                         }
+
+                                        // 2. Non-Activity Instance call via Cls.$new()
+                                        try {
+                                            var inst = Cls.$new();
+                                            if (paramTypes.length === 0) {
+                                                try {
+                                                    var res = inst[mName]();
+                                                    console.log("\\n[🚩 BINGO Auto-Invoked $new()] " + className + "." + mName + "() -> " + res);
+                                                } catch(e) {}
+                                            } else if (paramTypes.length === 1 && paramTypes[0].getName() === "int") {
+                                                candidateInts.forEach(function(val) {
+                                                    try {
+                                                        var res = inst[mName](val);
+                                                        console.log("\\n[🚩 BINGO Auto-Invoked $new() with " + val + "] " + className + "." + mName + "(" + val + ") -> " + res);
+                                                    } catch(e2) {}
+                                                });
+                                            }
+                                        } catch(eNew) {}
+
+                                        // 3. Existing Heap Instance call via Java.choose
+                                        Java.choose(className, {
+                                            onMatch: function(heapInst) {
+                                                if (paramTypes.length === 0) {
+                                                    try {
+                                                        var res = heapInst[mName]();
+                                                        console.log("\\n[🚩 BINGO Auto-Invoked Heap] " + className + "." + mName + "() -> " + res);
+                                                    } catch(e) {}
+                                                } else if (paramTypes.length === 1 && paramTypes[0].getName() === "int") {
+                                                    candidateInts.forEach(function(val) {
+                                                        try {
+                                                            var res = heapInst[mName](val);
+                                                            console.log("\\n[🚩 BINGO Auto-Invoked Heap with " + val + "] " + className + "." + mName + "(" + val + ") -> " + res);
+                                                        } catch(e2) {}
+                                                    });
+                                                } else if (paramTypes.length === 1) {
+                                                    var customArg = createCandidateArgObject(paramTypes[0].getName());
+                                                    if (customArg) {
+                                                        try {
+                                                            var res = heapInst[mName](customArg);
+                                                            console.log("\\n[🚩 BINGO Auto-Invoked Heap with Object] " + className + "." + mName + "(arg) -> " + res);
+                                                        } catch(eObj) {}
+                                                    }
+                                                }
+                                            },
+                                            onComplete: function() {}
+                                        });
                                     }
                                 });
 
@@ -351,14 +562,15 @@ Java.perform(function() {
                                         try {
                                             f.setAccessible(true);
                                             var val = f.get(null);
-                                            console.log("\\n[💾 AUTO-SOLVER] Ditemukan static field: " + className + "." + f.getName() + " = " + val);
-                                            if (typeof val === "number" && val === 0) {
-                                                [512, 1337, 4919, 1, 100].forEach(function(testVal) {
+                                            console.log("\\n[💾 Field Found] " + className + "." + f.getName() + " = " + val);
+                                            if (typeof val === "number") {
+                                                [512, 1337, 4919, 1, 100, 256].forEach(function(testVal) {
                                                     try {
                                                         Cls[f.getName()].value = testVal;
-                                                        console.log("[⚡ AUTO-SET] Set " + className + "." + f.getName() + " = " + testVal);
                                                     } catch(e) {}
                                                 });
+                                                try { Cls[f.getName()].value = 512; } catch(e) {}
+                                                console.log("[⚡ Field Set] " + className + "." + f.getName() + " = 512");
                                             }
                                         } catch(e) {}
                                     }
@@ -368,7 +580,7 @@ Java.perform(function() {
                         }
                     },
                     onComplete: function() {
-                        console.log("[*] Auto-Explorer selesai memindai semua method aplikasi.\\n");
+                        console.log("[*] Universal Analysis selesai memindai semua komponen aplikasi.\\n");
                     }
                 });
             } catch(e) {}

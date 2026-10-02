@@ -1,8 +1,7 @@
 """
-GUI-ToolFrida - Master Android CTF Assistant & Frida Studio
+GUI-ToolFrida - Frida Analysis
 Modern Dark-Mode Desktop GUI for Android Reverse Engineering,
-ADB Package Management, Root Triage, and Live Frida Dynamic Hooking.
-Designed for HackToday & CTF Finalists.
+ADB Package Management, Root Inspection, and Live Frida Dynamic Hooking.
 """
 
 import os
@@ -27,13 +26,13 @@ ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
 
-class FridaCTFAssistant(ctk.CTk):
+class FridaAnalysis(ctk.CTk):
     """Main Application Window."""
 
     def __init__(self):
         super().__init__()
 
-        self.title("⚡ Frida Android CTF Assistant - HackToday 2026")
+        self.title("Frida Analysis")
         self.geometry("1180x820")
         self.minsize(1050, 720)
 
@@ -76,13 +75,13 @@ class FridaCTFAssistant(ctk.CTk):
         title_box.pack(side="left", padx=12, pady=10)
         ctk.CTkLabel(
             title_box,
-            text="⚡ FRIDA ANDROID CTF ASSISTANT",
+            text="FRIDA ANALYSIS",
             font=ctk.CTkFont(family="Consolas", size=17, weight="bold"),
             text_color="#38bdf8"
         ).pack(anchor="w")
         ctk.CTkLabel(
             title_box,
-            text="Automated APK Installer, Root Inspector & Live Dynamic Hooking Studio",
+            text="APK Installer, Root Inspector & Live Dynamic Hooking",
             font=ctk.CTkFont(size=11),
             text_color="#94a3b8"
         ).pack(anchor="w")
@@ -296,7 +295,7 @@ class FridaCTFAssistant(ctk.CTk):
         self.pkg_filter_var = ctk.StringVar(value="Semua")
         self.pkg_seg_filter = ctk.CTkSegmentedButton(
             pkg_header,
-            values=["Semua", "⭐ Target CTF", "👤 User App"],
+            values=["Semua", "⭐ Target", "👤 User App"],
             variable=self.pkg_filter_var,
             command=lambda v: self._filter_package_list()
         )
@@ -343,10 +342,10 @@ class FridaCTFAssistant(ctk.CTk):
         self.hook_pkg_entry = ctk.CTkEntry(left_col, placeholder_text="com.example.challenge")
         self.hook_pkg_entry.pack(fill="x", padx=12, pady=(2, 8))
 
-        # Master Auto-Solver Shortcut Button
+        # Universal Analysis Quick-Load Button
         self.btn_auto_solver = ctk.CTkButton(
             left_col,
-            text="🔥 PILIH AUTO-SOLVER (ALL-IN-ONE)\n(Root Bypass + String + Crypto Sniffer)",
+            text="Universal Analysis\n(Root Bypass + String + Crypto Sniffer)",
             height=44,
             fg_color="#b45309",
             hover_color="#d97706",
@@ -356,7 +355,7 @@ class FridaCTFAssistant(ctk.CTk):
         self.btn_auto_solver.pack(fill="x", padx=12, pady=(2, 6))
 
         # Preset Templates Dropdown
-        ctk.CTkLabel(left_col, text="Atau Pilih Template Spesifik:", font=ctk.CTkFont(size=11, weight="bold")).pack(anchor="w", padx=12, pady=(4, 0))
+        ctk.CTkLabel(left_col, text="Pilih Template:", font=ctk.CTkFont(size=11, weight="bold")).pack(anchor="w", padx=12, pady=(4, 0))
         template_keys = list(TEMPLATES.keys())
         self.template_combo = ctk.CTkComboBox(
             left_col,
@@ -372,7 +371,7 @@ class FridaCTFAssistant(ctk.CTk):
 
         ctk.CTkRadioButton(
             left_col,
-            text="⚡ Spawn (-f) [Rekomendasi CTF]",
+            text="Spawn (-f) [Buka otomatis]",
             variable=self.hook_mode_var,
             value="spawn"
         ).pack(anchor="w", padx=14, pady=2)
@@ -453,7 +452,7 @@ class FridaCTFAssistant(ctk.CTk):
         tip_box.pack(fill="x", padx=12, pady=(10, 0))
         ctk.CTkLabel(
             tip_box,
-            text="💡 TIPS CTF:\n1. Pilih template 'String_Equals_Sniffer'\n2. Klik Start Hook\n3. Buka app di emulator & ketik flag acak\n4. Flag asli langsung muncul di console!",
+            text="Tip:\n1. Klik 'Universal Analysis' untuk load semua hook\n2. Klik Start Hook\n3. Buka app di emulator\n4. Output flag/secret muncul di console",
             font=ctk.CTkFont(size=11),
             text_color="#94a3b8",
             justify="left"
@@ -784,7 +783,7 @@ class FridaCTFAssistant(ctk.CTk):
             messagebox.showerror("Error", "Pilih file APK terlebih dahulu atau klik 'Tarik APK' pada salah satu package!")
             return
 
-        self.set_status(f"Memindai & Triage {os.path.basename(apk_path)} (Rev CTF Engine)...")
+        self.set_status(f"Memindai & Triage {os.path.basename(apk_path)}...")
 
         def _worker():
             report = self.triage.triage_apk(apk_path)
@@ -817,7 +816,7 @@ class FridaCTFAssistant(ctk.CTk):
 
         ctk.CTkLabel(
             head_row,
-            text="⚡ HASIL STATIC TRIAGE & REKOMENDASI (REV CTF ENGINE):",
+            text="HASIL STATIC TRIAGE & REKOMENDASI:",
             font=ctk.CTkFont(size=13, weight="bold"),
             text_color="#38bdf8"
         ).pack(side="left")
@@ -984,7 +983,7 @@ class FridaCTFAssistant(ctk.CTk):
             cat = item.get("category", "SYSTEM")
 
             # Category filter
-            if cat_filter == "⭐ Target CTF" and cat != "CTF_TARGET":
+            if cat_filter == "⭐ Target" and cat != "CTF_TARGET":
                 continue
             if cat_filter == "👤 User App" and cat not in ("CTF_TARGET", "USER_APP"):
                 continue
@@ -1016,7 +1015,7 @@ class FridaCTFAssistant(ctk.CTk):
             if cat == "CTF_TARGET":
                 badge_bg = "#065f46"
                 badge_txt_color = "#34d399"
-                badge_lbl = "⭐ TARGET CTF"
+                badge_lbl = "⭐ TARGET"
             elif cat == "USER_APP":
                 badge_bg = "#1e3a8a"
                 badge_txt_color = "#93c5fd"
@@ -1080,7 +1079,7 @@ class FridaCTFAssistant(ctk.CTk):
         if tpl in TEMPLATES:
             self.template_combo.set(tpl)
             self._on_template_selected(tpl)
-            self.set_status("🔥 Master Auto-Solver dimuat! (Root Bypass + String Sniffer + Crypto Sniffer Aktif)")
+            self.set_status("Universal Analysis template loaded.")
 
 
     def _on_template_selected(self, key):
@@ -1418,7 +1417,7 @@ class FridaCTFAssistant(ctk.CTk):
 
 
 def main():
-    app = FridaCTFAssistant()
+    app = FridaAnalysis()
     app.mainloop()
 
 
