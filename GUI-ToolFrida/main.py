@@ -263,13 +263,23 @@ class FridaCTFAssistant(ctk.CTk):
 
         ctk.CTkLabel(
             pkg_header,
-            text="DAFTAR APLIKASI DI EMULATOR (3rd Party):",
+            text="DAFTAR APLIKASI DI EMULATOR:",
             font=ctk.CTkFont(size=12, weight="bold")
         ).pack(side="left")
 
         self.pkg_search_entry = ctk.CTkEntry(pkg_header, placeholder_text="Filter nama package...", width=200)
         self.pkg_search_entry.pack(side="right", padx=(6, 0))
         self.pkg_search_entry.bind("<KeyRelease>", lambda e: self._filter_package_list())
+
+        self.pkg_third_party_var = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(
+            pkg_header,
+            text="3rd party only",
+            variable=self.pkg_third_party_var,
+            command=self.refresh_installed_packages,
+            width=110,
+            font=ctk.CTkFont(size=11)
+        ).pack(side="right", padx=4)
 
         ctk.CTkButton(
             pkg_header,
@@ -707,7 +717,9 @@ class FridaCTFAssistant(ctk.CTk):
     def refresh_installed_packages(self):
         if not self.selected_device_id:
             return
-        packages = self.adb.list_installed_packages(self.selected_device_id, third_party_only=True)
+        third_party = getattr(self, "pkg_third_party_var", None)
+        only_third = third_party.get() if third_party else False
+        packages = self.adb.list_installed_packages(self.selected_device_id, third_party_only=only_third)
         self.all_installed_packages = packages
         self._display_packages(packages)
 
@@ -716,7 +728,7 @@ class FridaCTFAssistant(ctk.CTk):
             widget.destroy()
 
         if not packages:
-            ctk.CTkLabel(self.pkg_list_frame, text="Tidak ada 3rd party packages ditemukan.", text_color="#94a3b8").pack(pady=10)
+            ctk.CTkLabel(self.pkg_list_frame, text="Tidak ada packages ditemukan.", text_color="#94a3b8").pack(pady=10)
             return
 
         for p in packages:
