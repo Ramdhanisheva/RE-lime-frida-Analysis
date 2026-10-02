@@ -416,22 +416,33 @@ class FridaCTFAssistant(ctk.CTk):
             justify="left"
         ).pack(padx=8, pady=8)
 
-        # Right Column: Editor (Top) & Real-time Console (Bottom)
+        # Right Column: Live Frida Console (Full height by default) + Collapsible Editor
         right_col = ctk.CTkFrame(hook_layout, fg_color="transparent")
         right_col.pack(side="right", fill="both", expand=True)
 
-        # Top: Script Editor
-        editor_label_row = ctk.CTkFrame(right_col, fg_color="transparent")
-        editor_label_row.pack(fill="x", pady=(0, 2))
-        ctk.CTkLabel(
-            editor_label_row,
-            text="LIVE SCRIPT EDITOR (JS):",
-            font=ctk.CTkFont(size=12, weight="bold")
-        ).pack(side="left")
+        # Toggle bar for Script Editor
+        self._editor_visible = False
+        editor_bar = ctk.CTkFrame(right_col, fg_color="transparent")
+        editor_bar.pack(fill="x", pady=(0, 4))
+
+        self.btn_toggle_editor = ctk.CTkButton(
+            editor_bar,
+            text="▶ Buka Script Editor (Opsional / Edit JS)",
+            font=ctk.CTkFont(size=11),
+            fg_color="#334155",
+            hover_color="#475569",
+            height=26,
+            command=self._toggle_script_editor
+        )
+        self.btn_toggle_editor.pack(side="left")
+
+        # Container for Script Editor (Hidden by default)
+        self.editor_container = ctk.CTkFrame(right_col, fg_color="transparent")
+        # will only pack when user clicks toggle
 
         self.script_editor = ctk.CTkTextbox(
-            right_col,
-            height=260,
+            self.editor_container,
+            height=220,
             font=ctk.CTkFont(family="Consolas", size=12),
             wrap="none"
         )
@@ -439,19 +450,18 @@ class FridaCTFAssistant(ctk.CTk):
         # Load default template
         self.script_editor.insert("1.0", TEMPLATES["01_String_Equals_Sniffer"].strip())
 
-        # Bottom: Live Frida Console
-        console_label_row = ctk.CTkFrame(right_col, fg_color="transparent")
-        console_label_row.pack(fill="x", pady=(4, 2))
+        # Live Frida Console Output (Takes priority and full space)
+        self.console_label_row = ctk.CTkFrame(right_col, fg_color="transparent")
+        self.console_label_row.pack(fill="x", pady=(2, 2))
         ctk.CTkLabel(
-            console_label_row,
-            text="LIVE FRIDA CONSOLE OUTPUT:",
+            self.console_label_row,
+            text="LIVE FRIDA CONSOLE OUTPUT (Flag / Secret / Logs):",
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color="#a3e635"
         ).pack(side="left")
 
         self.console_output = ctk.CTkTextbox(
             right_col,
-            height=220,
             font=ctk.CTkFont(family="Consolas", size=11),
             fg_color="#0b0f17",
             text_color="#e2e8f0",
@@ -803,6 +813,16 @@ class FridaCTFAssistant(ctk.CTk):
 
     def _clear_console(self):
         self.console_output.delete("1.0", "end")
+
+    def _toggle_script_editor(self):
+        if not self._editor_visible:
+            self.editor_container.pack(fill="x", pady=(0, 6), before=self.console_label_row)
+            self.btn_toggle_editor.configure(text="▼ Sembunyikan Script Editor")
+            self._editor_visible = True
+        else:
+            self.editor_container.pack_forget()
+            self.btn_toggle_editor.configure(text="▶ Buka Script Editor (Opsional / Edit JS)")
+            self._editor_visible = False
 
     def start_frida_hook(self):
         """Execute the Frida script against target app."""
