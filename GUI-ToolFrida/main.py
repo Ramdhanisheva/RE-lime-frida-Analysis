@@ -1130,10 +1130,13 @@ class FridaCTFAssistant(ctk.CTk):
             self._editor_visible = False
 
     def start_frida_hook(self):
-        """Execute the Frida script against target app."""
+        """Execute the Frida script against target app — smart auto-mode."""
         pkg = self.hook_pkg_entry.get().strip()
-        if not pkg:
-            messagebox.showerror("Error", "Masukkan Package Name target terlebih dahulu!")
+        if not pkg or pkg == "Unknown":
+            messagebox.showerror(
+                "Package Belum Dipilih",
+                "Pilih dulu package dari tab 'APK & App Manager', lalu klik namanya untuk set sebagai target!"
+            )
             return
 
         if not self.selected_device_id:
@@ -1153,26 +1156,46 @@ class FridaCTFAssistant(ctk.CTk):
             else:
                 return
 
+        # Auto-load Auto-Solver if script editor is empty / default
+        current_code = self.script_editor.get("1.0", "end").strip()
+        if not current_code:
+            self._select_master_auto_solver()
+            current_code = self.script_editor.get("1.0", "end").strip()
+
         # Save current editor code to a temporary script file
         temp_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scratch")
         os.makedirs(temp_dir, exist_ok=True)
         script_file = os.path.join(temp_dir, f"hook_{pkg}_{int(time.time())}.js")
-
-        code = self.script_editor.get("1.0", "end")
         with open(script_file, "w", encoding="utf-8") as f:
-            f.write(code)
+            f.write(current_code)
 
-        spawn = (self.hook_mode_var.get() == "spawn")
+        # ── SMART MODE DETECTION ──────────────────────────────────────────────
+        # Auto-detect: if the user selected "spawn" but app is already running,
+        # automatically switch to attach (avoids NullPointerException crash)
+        user_mode = self.hook_mode_var.get()
+        app_already_running = self.adb.is_app_running(self.selected_device_id, pkg)
+
+        if user_mode == "spawn" and app_already_running:
+            spawn = False
+            mode_note = "Auto-switch ke ATTACH (app sudah berjalan)"
+        elif user_mode == "attach" and not app_already_running:
+            spawn = True
+            mode_note = "Auto-switch ke SPAWN (app belum berjalan)"
+        else:
+            spawn = (user_mode == "spawn")
+            mode_note = "Spawn (-f)" if spawn else "Attach (-n)"
+        # ─────────────────────────────────────────────────────────────────────
 
         self._clear_console()
-        self.append_console(f"[*] Menyiapkan Frida session untuk target: {pkg}\n")
-        self.append_console(f"[*] Mode: {'Spawn (-f)' if spawn else 'Attach (-n)'} | Script: {os.path.basename(script_file)}\n\n")
+        self.append_console(f"[*] Target: {pkg}\n")
+        self.append_console(f"[*] Mode  : {mode_note}\n")
+        self.append_console(f"[*] Script: {os.path.basename(script_file)}\n\n")
 
         self.btn_run_hook.configure(state="disabled", fg_color="#334155")
         self.btn_stop_hook.configure(state="normal")
         if hasattr(self, "lbl_hook_state"):
             self.lbl_hook_state.configure(
-                text="🟢 STATUS: HOOK SEDANG BERJALAN!\n-> Buka app di emulator, ketik flag / klik tombol!",
+                text=f"🟢 HOOK SEDANG BERJALAN!\n→ Buka/interaksi app di emulator → flag di console!",
                 text_color="#22c55e"
             )
 
@@ -1182,11 +1205,26 @@ class FridaCTFAssistant(ctk.CTk):
             spawn=spawn,
             device_id=self.selected_device_id
         )
+
+        if not success:
+            # If spawn failed, auto-retry with attach
+            if spawn:
+                self.append_console("\n[!] Spawn gagal — mencoba ulang dengan mode Attach (-n)...\n\n")
+                success = self.runner.start_hook(
+                    package_name=pkg,
+                    script_path=script_file,
+                    spawn=False,
+                    device_id=self.selected_device_id
+                )
+
         if not success:
             self.btn_run_hook.configure(state="normal", fg_color="#16a34a")
             self.btn_stop_hook.configure(state="disabled")
             if hasattr(self, "lbl_hook_state"):
-                self.lbl_hook_state.configure(text="❌ STATUS: GAGAL MENJALANKAN HOOK", text_color="#ef4444")
+                self.lbl_hook_state.configure(
+                    text="❌ GAGAL — Pastikan:\n1. App sudah di-install\n2. Frida server hidup\n3. Emulator terhubung",
+                    text_color="#ef4444"
+                )
 
     def stop_frida_hook(self):
         """Stop running Frida session."""
@@ -1195,6 +1233,7 @@ class FridaCTFAssistant(ctk.CTk):
         self.btn_stop_hook.configure(state="disabled")
         if hasattr(self, "lbl_hook_state"):
             self.lbl_hook_state.configure(text="⚪ STATUS: HOOK DIHENTIKAN", text_color="#94a3b8")
+
 
     def on_frida_output(self, text: str):
         """Callback from runner thread."""

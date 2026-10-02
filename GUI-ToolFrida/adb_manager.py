@@ -224,6 +224,23 @@ class ADBManager:
                         packages.append(pkg)
         return sorted(packages)
 
+    def is_app_running(self, device_id: str, package_name: str) -> bool:
+        """Check if a specific app is currently running on the device."""
+        ret, stdout, _ = self.run_adb(
+            ["shell", "pidof", package_name],
+            device_id=device_id, timeout=4
+        )
+        if ret == 0 and stdout.strip():
+            return True
+        # Fallback: check ps
+        ret2, stdout2, _ = self.run_adb(
+            ["shell", f"ps -A | grep '{package_name}'"],
+            device_id=device_id, timeout=4
+        )
+        if ret2 == 0 and package_name in stdout2:
+            return True
+        return False
+
     def get_detailed_packages(self, device_id: str) -> List[Dict[str, Any]]:
         """
         Lists all packages on device with categorization:
