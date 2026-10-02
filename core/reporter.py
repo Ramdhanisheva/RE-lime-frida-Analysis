@@ -18,19 +18,17 @@ class Reporter:
 
     def print_banner(self, target_name: str, file_size: int):
         """Display clean tool header."""
-        print(f"\n[*] Analysis Reverse & Android: \033[1;33m{target_name}\033[0m ({file_size:,} bytes)\n")
+        print(f"\n[*] Tool Analysis Reverse: {target_name} ({file_size:,} bytes)\n")
 
     def print_phase(self, phase_name: str):
         """Print stage separator."""
         print(f"\n--- [ {phase_name} ] ---")
 
     def print_flag_alert(self, flag: str, source: str):
-        """Instant visual highlight when a flag is found."""
-        print("\n" + "=" * 70)
-        print(f" [+] [BINGO! FLAG DITEMUKAN]")
-        print(f" FLAG:   {flag}")
-        print(f" Sumber: {source}")
-        print("=" * 70 + "\n")
+        """Clean instant flag alert."""
+        print(f"\n[+] Flag found: {flag}")
+        if source:
+            print(f"    Source: {source}")
 
     def export_report(self, results: Dict[str, Any], elapsed_time: float) -> Tuple[str, str]:
         """Disabled to keep competition workspace clean without bot/AI trace."""

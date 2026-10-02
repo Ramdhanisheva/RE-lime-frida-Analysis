@@ -146,7 +146,43 @@ class StringHunter:
                             add_flag(m.group(0), f"Single-Byte XOR 0x{k:02x}", pos, dec[:40])
                     idx = pos + len(xored_pfx)
 
-        # 7. Stack String / Reversed String Scan
+        # 7. Caesar Shift / Additive Byte Shift (e.g. char - 1 or + 1)
+        prefixes = [b"HackToday", b"flag{", b"FLAG{", b"picoCTF{", b"FRIDA{", b"CTF{"]
+        for pfx in prefixes:
+            for shift in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 128, 255):
+                # Search for data where (b - shift) % 256 == pfx
+                shifted_pfx = bytes([(b + shift) % 256 for b in pfx])
+                idx = 0
+                while True:
+                    pos = data.find(shifted_pfx, idx)
+                    if pos == -1:
+                        break
+                    chunk = data[pos : min(len(data), pos + 128)]
+                    dec = bytes([(b - shift) % 256 for b in chunk]).decode("latin-1", errors="ignore")
+                    for pat in self.flag_patterns:
+                        m = pat.search(dec)
+                        if m:
+                            add_flag(m.group(0), f"Caesar Shift -{shift}", pos, dec[:40])
+                    idx = pos + len(shifted_pfx)
+
+        # 8. Base32 Encoded Flags
+        try:
+            import base64
+            # Look for Base32 patterns
+            for m in re.finditer(rb"[A-Z2-7]{16,}={0,6}", data):
+                cand_b32 = m.group(0)
+                try:
+                    dec_b32 = base64.b32decode(cand_b32, casefold=True).decode("latin-1", errors="ignore")
+                    for pat in self.flag_patterns:
+                        m_flag = pat.search(dec_b32)
+                        if m_flag:
+                            add_flag(m_flag.group(0), "Base32", m.start(), cand_b32.decode("ascii")[:40])
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # 9. Stack String / Reversed String Scan
         if len(data) <= 2 * 1024 * 1024:
             reversed_data = data[::-1]
             rev_text = reversed_data.decode("latin-1", errors="ignore")

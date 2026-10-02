@@ -68,6 +68,22 @@ class FridaEngine:
             else:
                 clean_classes.append(c)
 
+        # 0. Master Universal Analysis (All-in-One)
+        try:
+            import sys
+            gui_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "GUI-ToolFrida")
+            if gui_dir not in sys.path:
+                sys.path.insert(0, gui_dir)
+            from templates import TEMPLATES
+            universal_code = TEMPLATES.get("00_Universal_Analysis", "")
+            if universal_code:
+                p_uni = os.path.join(script_dir, "00_universal_analysis.js")
+                with open(p_uni, "w", encoding="utf-8") as fu:
+                    fu.write(universal_code.strip())
+                scripts_generated["Universal Analysis (All-in-One)"] = p_uni
+        except Exception:
+            pass
+
         # 1. Universal Crypto Sniffer
         crypto_js = """
 Java.perform(function() {

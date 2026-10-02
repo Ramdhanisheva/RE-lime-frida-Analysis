@@ -129,6 +129,27 @@ class APKInspector:
                         if ts not in results["crypto_candidates"]["target_strings"]:
                             results["crypto_candidates"]["target_strings"].append(ts)
 
+                # Dump all DEX strings to strings.txt for easy manual inspection
+                if all_dex_strings:
+                    unique_strs = sorted(set(all_dex_strings))
+                    strings_file = os.path.join(extracted_dir, "strings.txt")
+                    with open(strings_file, "w", encoding="utf-8", errors="ignore") as sf:
+                        sf.write("\n".join(unique_strs))
+                    results["strings_dump"] = strings_file
+
+                # Scan resources.arsc if present
+                if "resources.arsc" in names:
+                    try:
+                        arsc_data = z.read("resources.arsc")
+                        arsc_dest = os.path.join(extracted_dir, "resources.arsc")
+                        with open(arsc_dest, "wb") as rf:
+                            rf.write(arsc_data)
+                        for fl in self.string_hunter.hunt_flags(arsc_data):
+                            fl["context"] = f"[resources.arsc] {fl['context']}"
+                            results["flags_found"].append(fl)
+                    except Exception:
+                        pass
+
                 # 3. Native Libraries (.so)
                 so_files = [n for n in names if n.endswith(".so")]
                 for so_name in so_files:
@@ -169,6 +190,16 @@ class APKInspector:
                         a_data = z.read(asset_name)
                     except Exception:
                         continue
+
+                    # Extract asset to disk for manual inspection
+                    if asset_name.startswith("assets/") or asset_name.startswith("res/raw/"):
+                        try:
+                            a_dest = os.path.join(extracted_dir, asset_name.replace("/", os.sep))
+                            os.makedirs(os.path.dirname(a_dest), exist_ok=True)
+                            with open(a_dest, "wb") as af:
+                                af.write(a_data)
+                        except Exception:
+                            pass
 
                     # 4a. Flag scan in assets/ and res/values/strings.xml
                     if asset_name.startswith("assets/") or "strings.xml" in asset_name or asset_name.startswith("res/"):
@@ -300,6 +331,14 @@ class APKInspector:
             for t in tokens:
                 if "permission." in t.lower() or "android.permission" in t:
                     results["permissions"].append(t)
+
+                for fl in self.string_hunter.hunt_flags(t.encode("latin-1", errors="ignore")):
+                    fl["context"] = f"[AndroidManifest.xml] {fl['context']}"
+                    results["flags_found"].append(fl)
+
+                if any(k in t.lower() for k in ("secret", "password", "flag", "api_key", "token")):
+                    if len(t) < 120 and t not in results.get("gradle_secrets", []):
+                        results["gradle_secrets"].append(t)
 
         except Exception:
             pass
