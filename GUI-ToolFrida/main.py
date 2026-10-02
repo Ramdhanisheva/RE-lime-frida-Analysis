@@ -491,7 +491,9 @@ class FridaCTFAssistant(ctk.CTk):
         )
         self.script_editor.pack(fill="both", expand=True, pady=(0, 6))
         # Load default template
-        self.script_editor.insert("1.0", TEMPLATES["01_String_Equals_Sniffer"].strip())
+        first_tpl = list(TEMPLATES.values())[0].strip()
+        self.script_editor.insert("1.0", first_tpl)
+
 
         # Live Frida Console Output (Takes priority and full space)
         self.console_label_row = ctk.CTkFrame(right_col, fg_color="transparent")
@@ -1074,11 +1076,12 @@ class FridaCTFAssistant(ctk.CTk):
     # Frida Hooking Studio Actions
     # -------------------------------------------------------------------------
     def _select_master_auto_solver(self):
-        tpl = "00_AUTO_SOLVER_ALL_IN_ONE"
+        tpl = list(TEMPLATES.keys())[0]
         if tpl in TEMPLATES:
             self.template_combo.set(tpl)
             self._on_template_selected(tpl)
             self.set_status("🔥 Master Auto-Solver dimuat! (Root Bypass + String Sniffer + Crypto Sniffer Aktif)")
+
 
     def _on_template_selected(self, key):
         if key in TEMPLATES:
