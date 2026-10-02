@@ -117,14 +117,48 @@ class FridaRunner:
             self.on_exit(returncode or 0)
 
     def stop_hook(self):
-        """Terminate the active Frida process."""
+        """Terminate the active Frida process and all its children."""
         self.is_running = False
         if self.process:
             try:
-                self.process.terminate()
-                self.process.kill()
+                # Try writing 'quit' to frida's stdin first (graceful)
+                if self.process.stdin:
+                    try:
+                        self.process.stdin.write("quit\n")
+                        self.process.stdin.flush()
+                    except Exception:
+                        pass
+
+                # Then forcefully kill the process tree on Windows
+                if os.name == "nt":
+                    try:
+                        import ctypes
+                        # taskkill /F /T kills the entire process tree
+                        subprocess.run(
+                            ["taskkill", "/F", "/T", "/PID", str(self.process.pid)],
+                            capture_output=True,
+                            timeout=5
+                        )
+                    except Exception:
+                        pass
+                else:
+                    import signal
+                    try:
+                        os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
+                    except Exception:
+                        pass
+
+                try:
+                    self.process.terminate()
+                except Exception:
+                    pass
+                try:
+                    self.process.kill()
+                except Exception:
+                    pass
             except Exception:
                 pass
             self.process = None
         if self.on_output:
-            self.on_output("[*] Sesi Frida dihentikan secara manual.\n")
+            self.on_output("\n[*] Sesi Frida dihentikan secara manual.\n")
+
