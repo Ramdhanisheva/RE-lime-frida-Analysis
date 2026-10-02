@@ -214,24 +214,24 @@ def main():
     out_dir_abs = os.path.abspath(args.outdir)
 
     if all_flags:
-        print("\n\033[1;42;37m" + "=" * 70 + "\033[0m")
-        print("\033[1;42;37m" + f"  🚩 [BINGO!] TOTAL FLAG DITEMUKAN: {len(all_flags)}".ljust(68) + "\033[0m")
+        print("\n" + "=" * 60)
+        print("[+] Flag found:")
         for idx, fl in enumerate(all_flags, 1):
-            print(f"\033[1;42;30m   [{idx}] FLAG  : {fl['flag']} \033[0m")
-            print(f"\033[1;42;30m       METODE: {fl['encoding']} \033[0m")
-        print(f"\033[1;42;30m   📂 FOLDER HASIL: {out_dir_abs} \033[0m")
-        print("\033[1;42;37m" + "  👉 SILAKAN CEK HASIL DI ATAS & SUBMIT KE SCOREBOARD!".ljust(68) + "\033[0m")
-        print("\033[1;42;37m" + "=" * 70 + "\033[0m\n")
+            print(f"    - {fl['flag']}")
+            if fl.get('encoding'):
+                print(f"      Method: {fl['encoding']}")
+        print(f"\n[+] Output: {out_dir_abs}")
+        print("=" * 60 + "\n")
     else:
-        print("\n\033[1;44;37m" + "=" * 70 + "\033[0m")
-        print("\033[1;44;37m" + "  🔍 [SELESAI] ANALISIS STATIC SELESAI".ljust(68) + "\033[0m")
-        print(f"\033[1;44;30m   📂 FOLDER HASIL & SCRIPT: {out_dir_abs} \033[0m")
+        print("\n" + "-" * 60)
+        print("[*] Static analysis done.")
+        print(f"[*] Output directory: {out_dir_abs}")
         if results.get("frida_scripts"):
-            print(f"\033[1;44;30m   💉 Script Frida tersedia di: {args.outdir}/frida_scripts \033[0m")
-        print("\033[1;44;37m" + "  👉 SILAKAN CEK FOLDER HASIL / GUNAKAN FRIDA DI ATAS!".ljust(68) + "\033[0m")
-        print("\033[1;44;37m" + "=" * 70 + "\033[0m\n")
+            print(f"[*] Frida scripts: {args.outdir}/frida_scripts")
+        print("-" * 60 + "\n")
 
 
 if __name__ == "__main__":
+
     main()
 
