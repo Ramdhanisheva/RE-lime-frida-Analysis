@@ -14,6 +14,9 @@ import os
 import sys
 import time
 
+# Ensure directory of rev.py is in sys.path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import config
 from core.apk_inspector import APKInspector
 from core.crypto_solver import CryptoSolver
@@ -215,10 +218,9 @@ def main():
     else:
         print(" [*] Tidak ada flag plaintext statis langsung. Gunakan script Frida yang disediakan untuk runtime solve.")
 
-    md_report, out_folder = reporter.export_report(results, elapsed)
     print("-" * 70)
-    print(f" [*] Laporan Markdown: {md_report}")
-    print(f" [*] Folder Artefak:    {out_folder}")
+    if results.get("frida_scripts"):
+        print(f" [*] Folder Script Frida: {args.outdir}/frida_scripts")
     print("=" * 70)
 
 

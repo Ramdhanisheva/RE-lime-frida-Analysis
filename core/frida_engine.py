@@ -319,4 +319,122 @@ Java.perform(function() {
             f6.write(root_bypass_js.strip())
         scripts_generated["Root Detection Bypass"] = p6
 
+        # 8. Universal String & Array Comparison Sniffer
+        cmp_sniffer_js = """
+Java.perform(function() {
+    console.log("[*] === Universal String.equals & Comparison Sniffer Active ===");
+    var StringClass = Java.use("java.lang.String");
+    StringClass.equals.implementation = function(obj) {
+        if (obj !== null) {
+            var s1 = this.toString();
+            var s2 = obj.toString();
+            if ((s1.length > 2 && s2.length > 2) && (
+                s1.indexOf("flag") !== -1 || s2.indexOf("flag") !== -1 ||
+                s1.indexOf("FLAG") !== -1 || s2.indexOf("FLAG") !== -1 ||
+                s1.indexOf("HackToday") !== -1 || s2.indexOf("HackToday") !== -1 ||
+                s1.indexOf("{") !== -1 || s2.indexOf("{") !== -1 ||
+                s1.indexOf("CTF") !== -1 || s2.indexOf("CTF") !== -1
+            )) {
+                console.log("[BINGO String.equals]");
+                console.log("   Arg1 (Expected/Input): " + s1);
+                console.log("   Arg2 (Input/Expected): " + s2);
+            }
+        }
+        return this.equals(obj);
+    };
+
+    StringClass.equalsIgnoreCase.implementation = function(obj) {
+        if (obj !== null) {
+            var s1 = this.toString();
+            var s2 = obj.toString();
+            if (s1.indexOf("flag") !== -1 || s2.indexOf("flag") !== -1 || s1.indexOf("HackToday") !== -1 || s2.indexOf("HackToday") !== -1) {
+                console.log("[BINGO String.equalsIgnoreCase] Arg1: " + s1 + " | Arg2: " + s2);
+            }
+        }
+        return this.equalsIgnoreCase(obj);
+    };
+
+    var Arrays = Java.use("java.util.Arrays");
+    Arrays.equals.overload('[B', '[B').implementation = function(a, b) {
+        if (a !== null && b !== null && a.length > 3) {
+            try {
+                var strA = StringClass.$new(a);
+                var strB = StringClass.$new(b);
+                if (strA.indexOf("flag") !== -1 || strB.indexOf("flag") !== -1 || strA.indexOf("HackToday") !== -1 || strB.indexOf("HackToday") !== -1) {
+                    console.log("[BINGO Arrays.equals byte[]] A: " + strA + " | B: " + strB);
+                }
+            } catch(e) {}
+        }
+        return this.equals(a, b);
+    };
+});
+"""
+        p7 = os.path.join(script_dir, "07_string_equals_sniffer.js")
+        with open(p7, "w", encoding="utf-8") as f7:
+            f7.write(cmp_sniffer_js.strip())
+        scripts_generated["String & Array Comparison Sniffer"] = p7
+
+        # 9. In-Memory Dynamic DEX Dumper
+        dex_dumper_js = f"""
+Java.perform(function() {{
+    console.log("[*] === In-Memory Dynamic DEX Dumper Active ===");
+    try {{
+        var InMemoryDexClassLoader = Java.use("dalvik.system.InMemoryDexClassLoader");
+        InMemoryDexClassLoader.$init.overload('java.nio.ByteBuffer', 'java.lang.ClassLoader').implementation = function(buffer, loader) {{
+            console.log("[+] Intercepted InMemoryDexClassLoader! Dumping buffer...");
+            try {{
+                var FileOutputStream = Java.use("java.io.FileOutputStream");
+                var dumpPath = "/data/data/{pkg}/dumped_inmemory_" + Date.now() + ".dex";
+                var fos = FileOutputStream.$new(dumpPath);
+                var channel = fos.getChannel();
+                channel.write(buffer);
+                fos.close();
+                console.log("[BINGO] DEX dumped successfully to: " + dumpPath);
+            }} catch(err) {{
+                console.log("[-] Failed to write DEX: " + err);
+            }}
+            return this.$init(buffer, loader);
+        }};
+    }} catch(e) {{}}
+
+    try {{
+        var DexClassLoader = Java.use("dalvik.system.DexClassLoader");
+        DexClassLoader.$init.implementation = function(dexPath, optDir, libSearch, parent) {{
+            console.log("[+] Intercepted DexClassLoader with path: " + dexPath);
+            return this.$init(dexPath, optDir, libSearch, parent);
+        }};
+    }} catch(e) {{}}
+}});
+"""
+        p8 = os.path.join(script_dir, "08_dex_in_memory_dumper.js")
+        with open(p8, "w", encoding="utf-8") as f8:
+            f8.write(dex_dumper_js.strip())
+        scripts_generated["In-Memory DEX Dumper"] = p8
+
+        # 10. Biometric & Keystore Authentication Bypass
+        biometric_js = """
+Java.perform(function() {
+    console.log("[*] === Biometric & Keystore Authentication Bypass Active ===");
+    try {
+        var BiometricPromptAuth = Java.use("android.hardware.biometrics.BiometricPrompt$AuthenticationCallback");
+        BiometricPromptAuth.onAuthenticationFailed.implementation = function() {
+            console.log("[*] BiometricPrompt failed intercepted -> Forcing onAuthenticationSucceeded!");
+            this.onAuthenticationSucceeded(null);
+        };
+    } catch(e) {}
+
+    try {
+        var BiometricPromptCompat = Java.use("androidx.biometric.BiometricPrompt$AuthenticationCallback");
+        BiometricPromptCompat.onAuthenticationFailed.implementation = function() {
+            console.log("[*] AndroidX Biometric failed intercepted -> Forcing onAuthenticationSucceeded!");
+            this.onAuthenticationSucceeded(null);
+        };
+    } catch(e) {}
+});
+"""
+        p9 = os.path.join(script_dir, "09_biometric_keystore_bypass.js")
+        with open(p9, "w", encoding="utf-8") as f9:
+            f9.write(biometric_js.strip())
+        scripts_generated["Biometric Authentication Bypass"] = p9
+
         return scripts_generated
