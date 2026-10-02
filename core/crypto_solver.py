@@ -69,11 +69,17 @@ class CryptoSolver:
             if not any(k[0] == dk for k in keys_pool):
                 keys_pool.append((dk, dk.decode("latin-1"), 1))
 
-        # Sort keys: priority 1 first, then shorter/cleaner
-        keys_pool.sort(key=lambda x: (x[2], len(x[0])))
+        # Sort keys: priority 1 first, then prefer 16-byte (AES-128) and 32-byte (AES-256), then 24, then 8
+        def key_sort_rank(k_tuple):
+            prio = k_tuple[2]
+            k_len = len(k_tuple[0])
+            len_rank = {16: 0, 32: 1, 24: 2, 8: 3}.get(k_len, 4)
+            return (prio, len_rank)
 
-        # Cap keys pool to top 60 most relevant candidates to prevent hanging
-        keys_pool = keys_pool[:60]
+        keys_pool.sort(key=key_sort_rank)
+
+        # Cap keys pool to top 200 most relevant candidates
+        keys_pool = keys_pool[:200]
 
         # Prioritize ciphertexts with priority 1
         sorted_cts = sorted(candidate_ciphertexts, key=lambda x: x.get("priority", 2))[:30]

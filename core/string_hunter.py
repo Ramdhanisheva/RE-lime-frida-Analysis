@@ -202,14 +202,14 @@ class StringHunter:
             raw_strs = re.findall(rb"[A-Za-z0-9_\-\.\$]{8,128}", data)
             pool = [s.decode("latin-1", errors="ignore") for s in raw_strs]
 
-        key_regex = re.compile(r"^[A-Za-z0-9_!@#$%^&*+=?~-]{16}$|^[A-Za-z0-9_!@#$%^&*+=?~-]{24}$|^[A-Za-z0-9_!@#$%^&*+=?~-]{32}$")
-        b64_regex = re.compile(r"^[A-Za-z0-9+/]{20,}={0,2}$")
+        key_regex = re.compile(r"^[A-Za-z0-9_!@#$%^&*+=?~-]{8}$|^[A-Za-z0-9_!@#$%^&*+=?~-]{16}$|^[A-Za-z0-9_!@#$%^&*+=?~-]{24}$|^[A-Za-z0-9_!@#$%^&*+=?~-]{32}$")
+        b64_regex = re.compile(r"^[A-Za-z0-9+/]{16,}={0,2}$")
 
         for s in pool:
-            # 1. Candidate Key check
-            if len(s) in (16, 24, 32) and key_regex.match(s):
+            # 1. Candidate Key check (8 for DES/XOR, 16/24/32 for AES)
+            if len(s) in (8, 16, 24, 32) and key_regex.match(s):
                 if s not in seen_keys:
-                    if not any(fw.lower() in s.lower() for fw in framework_words):
+                    if not any(fw.lower() in s.lower() for fw in framework_words) and not s.startswith("Lcom/"):
                         seen_keys.add(s)
                         candidates["keys"].append({
                             "key": s,

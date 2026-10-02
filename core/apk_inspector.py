@@ -9,6 +9,7 @@ Full Android Package (.apk) static triage and unpacker:
 - Identifies hooking targets for Frida
 """
 
+import base64
 import math
 import os
 import re
@@ -222,7 +223,16 @@ class APKInspector:
                             fl["context"] = f"[DEX-in-assets:{asset_name}] {fl['context']}"
                             results["flags_found"].append(fl)
 
-                    # 4e. High-entropy encrypted blob detection (potential AES-encrypted flag)
+                    # 4e. High-entropy encrypted blob detection & raw binary assets as candidate ciphertexts
+                    if asset_name.startswith("assets/") and not asset_name.endswith((".png", ".jpg", ".jpeg", ".mp3", ".ogg", ".ttf", ".otf", ".apk", ".dex")):
+                        if 8 <= len(a_data) <= 65536:
+                            results["crypto_candidates"]["ciphertexts"].append({
+                                "b64": base64.b64encode(a_data).decode("ascii"),
+                                "raw_bytes": a_data,
+                                "priority": 1,
+                                "source": asset_name
+                            })
+
                     if len(a_data) >= 16 and len(a_data) <= 4096:
                         try:
                             byte_counts = [0] * 256
