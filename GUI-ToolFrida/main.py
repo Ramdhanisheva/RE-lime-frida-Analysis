@@ -1262,9 +1262,19 @@ class FridaCTFAssistant(ctk.CTk):
             if msg_type == "frida":
                 self.append_console(data)
 
+                # ── BINGO / FLAG DETECTED ALERT ──────────────────────────────
+                data_l = data.lower()
+                if "bingo" in data_l or "flag{" in data_l or "hacktoday{" in data_l or "ctf{" in data_l:
+                    if hasattr(self, "lbl_hook_state"):
+                        self.lbl_hook_state.configure(
+                            text="🎉 BINGO! FLAG DITEMUKAN!\n→ CEK OUTPUT CONSOLE DI KANAN!",
+                            text_color="#22c55e"
+                        )
+                    self.set_status("🚩 [BINGO!] Flag / Secret terdeteksi di konsol output!")
+
                 # ── SMART ERROR DETECTION ────────────────────────────────────
                 # Error 1: App belum buka di emulator → Attach gagal
-                if "unable to find process" in data.lower():
+                if "unable to find process" in data_l:
                     pkg = self.hook_pkg_entry.get().strip()
                     script = getattr(self, "_last_script_file", None)
                     if script and pkg:
@@ -1284,7 +1294,7 @@ class FridaCTFAssistant(ctk.CTk):
                         )
 
                 # Error 2: Spawn gagal NullPointerException (Frida17 + some APKs)
-                elif "nullpointerexception" in data.lower() and "failed to spawn" in data.lower():
+                elif "nullpointerexception" in data_l and "failed to spawn" in data_l:
                     pkg = self.hook_pkg_entry.get().strip()
                     script = getattr(self, "_last_script_file", None)
                     if script and pkg:
@@ -1306,6 +1316,7 @@ class FridaCTFAssistant(ctk.CTk):
                             device_id=self.selected_device_id
                         ))
                 # ─────────────────────────────────────────────────────────────
+
 
             elif msg_type == "frida_exit":
                 self.btn_run_hook.configure(state="normal", fg_color="#16a34a")
